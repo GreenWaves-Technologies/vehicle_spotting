@@ -1,0 +1,9 @@
+#COMPILE AT MODEL
+
+gcc -g -o GenTile -I. -I/home/marco-gwt/GWT/AutotilerV2/Autotiler -I/home/marco-gwt/GWT/AutotilerV2/Emulation -I/home/marco-gwt/GWT/AutotilerV2/CNN_Generators mbv1_grayscaleModel.c /home/marco-gwt/GWT/AutotilerV2/CNN_Generators/CNN_Generators.c /home/marco-gwt/GWT/AutotilerV2/install/lib/libtile.a
+
+#RUN GENERATION
+./GenTile -o . -c .
+
+#COMPILE MAIN
+gcc -O3 -g -o emul_test main_test.c mbv1_grayscaleKernels.c ../utils/ImgIO.c ../utils/helpers.c /home/marco-gwt/GWT/AutotilerV2/CNN_Libraries/CNN_BiasReLULinear_BasicKernels.c /home/marco-gwt/GWT/AutotilerV2/CNN_Libraries/CNN_Conv_BasicKernels.c /home/marco-gwt/GWT/AutotilerV2/CNN_Libraries/CNN_Conv_DP_BasicKernels.c /home/marco-gwt/GWT/AutotilerV2/CNN_Libraries//CNN_Conv_DW_BasicKernels.c /home/marco-gwt/GWT/AutotilerV2/CNN_Libraries/CNN_Conv_DW_DP_BasicKernels.c /home/marco-gwt/GWT/AutotilerV2/CNN_Libraries/CNN_Pooling_BasicKernels.c /home/marco-gwt/GWT/AutotilerV2/CNN_Libraries/CNN_MatAlgebra.c /home/marco-gwt/GWT/AutotilerV2/CNN_Libraries/CNN_SoftMax.c  -I. -I../ -I../utils/ -I/home/marco-gwt/GWT/gap_sdk/tools/autotiler_v3/include -I/home/marco-gwt/GWT/gap_sdk/tools/autotiler_v3/include -I/home/marco-gwt/GWT/AutotilerV2/CNN_Libraries -I/home/marco-gwt/GWT/gap_sdk/tools/autotiler_v3/generators -I/home/marco-gwt/GWT/gap_sdk/tools/autotiler_v3 -I/home/marco-gwt/GWT/AutotilerV2/CNN_Generators -D__EMUL__ -DAT_IN_HEIGHT=224 -DAT_IN_WIDTH=224 -DAT_IN_COLORS=1
