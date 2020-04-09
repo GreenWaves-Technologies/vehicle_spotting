@@ -1,0 +1,8 @@
+adjust
+fusions
+aquant -f 16 /home/marco-gwt/GWT/datasets/COCO_test/train2014_subset_GAP_ppm_gray/*
+#validate -q /home/marco-gwt/GWT/datasets/COCO_test/val2014_GAP_gray/* -s #silent mode
+set graph_produce_node_names 1
+set graph_produce_operinfos 1
+set graph_monitor_cycles 1
+save_state
