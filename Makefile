@@ -8,30 +8,33 @@ ifndef GAP_SDK_HOME
   $(error Source sourceme in gap_sdk first)
 endif
 
-pulpChip=GAP
-MODEL_PREFIX=mbv1_grayscale
-APP = vww_vehicle
+include common.mk
 
-PERF ?= 0
-QUANT_BITS?=8
-ALREADY_FLASHED?=0
-IMAGE?=$(CURDIR)/himax_1.ppm
+IMAGE=$(CURDIR)/images/himax_1.ppm
 
-export GAP_USE_OPENOCD=1
 io=host
 
-include ./model_decl.mk
+QUANT_BITS=8
+BUILD_DIR=BUILD
+MODEL_SQ8=1
+
+$(info Building GAP8 mode with $(QUANT_BITS) bit quantization)
+
+NNTOOL_SCRIPT=model/nntool_script
+MODEL_SUFFIX = _SQ8BIT
+TRAINED_TFLITE_MODEL=model/$(MODEL_PREFIX).tflite
+
+include common/model_decl.mk
 
 # Here we set the memory allocation for the generated kernels
 # REMEMBER THAT THE L1 MEMORY ALLOCATION MUST INCLUDE SPACE
 # FOR ALLOCATED STACKS!
-CLUSTER_STACK_SIZE?=2048
-CLUSTER_SLAVE_STACK_SIZE?=512
-
+CLUSTER_STACK_SIZE=4028
+CLUSTER_SLAVE_STACK_SIZE=1024
 TOTAL_STACK_SIZE=$(shell expr $(CLUSTER_STACK_SIZE) \+ $(CLUSTER_SLAVE_STACK_SIZE) \* 7)
 MODEL_L1_MEMORY=$(shell expr 60000 \- $(TOTAL_STACK_SIZE))
-MODEL_L2_MEMORY?=500000
-MODEL_L3_MEMORY?=8388608
+MODEL_L2_MEMORY=150000
+MODEL_L3_MEMORY=8388608
 # hram - HyperBus RAM
 # qspiram - Quad SPI RAM
 MODEL_L3_EXEC=hram
@@ -39,31 +42,29 @@ MODEL_L3_EXEC=hram
 # qpsiflash - Quad SPI Flash
 MODEL_L3_CONST=hflash
 
+pulpChip = GAP
+PULP_APP = vww_vehicle
+USE_PMSIS_BSP=1
 
-READFS_FILES += $(realpath $(MODEL_TENSORS))
+APP = vww_vehicle
+APP_SRCS += main.c $(MODEL_GEN_C) $(MODEL_COMMON_SRCS) $(CNN_LIB)
 
-#This is to avoid flaching every time model data into flash
-ifneq ($(ALREADY_FLASHED),1)	
-	PLPBRIDGE_FLAGS += -f 
-endif
-
-
-APP_SRCS += $(PROJ_FOLDER)/main.c $(MODEL_COMMON_SRCS) $(MODEL_SRCS)
-
-APP_CFLAGS += -O3 -s -mno-memcpy -fno-tree-loop-distribute-patterns 
-APP_CFLAGS += -I. -I$(MODEL_COMMON_INC) -I$(TILER_EMU_INC) -I$(TILER_INC) -I$(TILER_CNN_KERNEL_PATH) -I$(PROJ_FOLDER)/.
-APP_CFLAGS += -DAT_MODEL_PREFIX=$(MODEL_PREFIX) $(MODEL_SIZE_CFLAGS)
+APP_CFLAGS += -g -O1 -mno-memcpy -fno-tree-loop-distribute-patterns 
+APP_CFLAGS += -I. -I$(MODEL_COMMON_INC) -I$(TILER_EMU_INC) -I$(TILER_INC) $(CNN_LIB_INCLUDE) -I$(MODEL_BUILD)
+APP_CFLAGS += -DPERF -DAT_MODEL_PREFIX=$(MODEL_PREFIX) $(MODEL_SIZE_CFLAGS)
 APP_CFLAGS += -DSTACK_SIZE=$(CLUSTER_STACK_SIZE) -DSLAVE_STACK_SIZE=$(CLUSTER_SLAVE_STACK_SIZE)
-APP_CFLAGS += -DAT_IMAGE=$(IMAGE) -DAT_IN_HEIGHT=224 -DAT_IN_WIDTH=224 -DAT_IN_COLORS=1
-ifeq ($(PERF), 1)
-	APP_CFLAGS += -DPERF
-endif
+APP_CFLAGS += -DAT_IMAGE=$(IMAGE)
+
+READFS_FILES=$(abspath $(MODEL_TENSORS))
+PLPBRIDGE_FLAGS += -f
 
 # all depends on the model
 all:: model
 
 clean:: clean_model
 
-include ./model_rules.mk
+include common/model_rules.mk
+$(info APP_SRCS... $(APP_SRCS))
+$(info APP_CFLAGS... $(APP_CFLAGS))
 include $(RULES_DIR)/pmsis_rules.mk
 
