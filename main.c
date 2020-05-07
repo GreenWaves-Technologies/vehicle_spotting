@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
 int body(void)
 {
 /*-----------------voltage-frequency settings-----------------------*/
-	rt_freq_set(RT_FREQ_DOMAIN_FC, 50000000);
+	rt_freq_set(RT_FREQ_DOMAIN_FC,250000000);
 	rt_freq_set(RT_FREQ_DOMAIN_CL,150000000);
 	PMU_set_voltage(1200,0);
 /*------------------------HyperRAM---------------------------*/
