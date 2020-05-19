@@ -1,11 +1,12 @@
 adjust
 fusions --scale8
+imageformat input_1 bw8 offset_int8
 qshow
-nodeoption 1 PARALLELFEATURES 0
-nodeoption 2 PARALLELFEATURES 0
-nodeoption 5 PARALLELFEATURES 0
-nodeoption 8 PARALLELFEATURES 0
-nodeoption 12 PARALLELFEATURES 0
+#nodeoption 1 PARALLELFEATURES 0
+#nodeoption 2 PARALLELFEATURES 0
+#nodeoption 5 PARALLELFEATURES 0
+#nodeoption 8 PARALLELFEATURES 0
+#nodeoption 12 PARALLELFEATURES 0
 set graph_produce_node_names true
 set graph_reorder_constant_in true
 set graph_produce_node_names true
@@ -13,5 +14,5 @@ set graph_produce_operinfos true
 set graph_monitor_cycles true
 set graph_const_exec_from_flash true
 set graph_dump_tensor 0
-set graph_trace_exec true
+#set graph_trace_exec true
 save_state

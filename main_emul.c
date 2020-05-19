@@ -9,37 +9,24 @@
 
 #include <stdio.h>
 
-#include "mobv2_vwwvehicle_quant_asym.h"
+#include "mobv2_vwwvehicle_quant.h"
 #include "ImgIO.h"
 
 #include <string.h>
 #include <dirent.h>
 
-#define __XSTR(__s) __STR(__s)
-#define __STR(__s) #__s
-
-
-#ifdef PERF
-#undef PERF
-#endif
-
 #define AT_INPUT_SIZE (AT_INPUT_WIDTH*AT_INPUT_HEIGHT*AT_INPUT_COLORS)
-
-#ifndef STACK_SIZE
-#define STACK_SIZE     2048 
-#endif
 
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash);
 
 
 // Softmax always outputs Q15 short int even from 8 bit input
 L2_MEM short int *ResOut;
-L2_MEM unsigned char imgin_unsigned[AT_INPUT_SIZE];
-L2_MEM signed char *imgin_signed = imgin_unsigned;
+L2_MEM unsigned char ImgIn[AT_INPUT_SIZE];
 
 static int RunNetwork()
 {
-  __PREFIX(CNN)(imgin_signed, ResOut);
+  __PREFIX(CNN)(ImgIn, ResOut);
   //Checki Results
   /*if (ResOut[1] > ResOut[0]) {
     printf("person seen (%d, %d)\n", ResOut[0], ResOut[1]);
@@ -60,22 +47,6 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-/* TO READ LABELS FROM FILE */
-/*FILE *fp;
-  char str[MAXCHAR];
-  char* filename = "./label.txt";
-  int init_size;
-
-  fp = fopen(filename, "r");
-  if (fp == NULL){
-      printf("Could not open file %s",filename);
-  }
-  while (fgets(str, MAXCHAR, fp) != NULL){  
-      init_size = strlen(str);
-      printf("%s ---- %d\n", str, init_size);
-  }
-  fclose(fp);
-*/ 
   struct dirent *dp;
   DIR *dfd;
 
@@ -123,13 +94,9 @@ int main(int argc, char *argv[])
     } else {
       label = dp->d_name[strlen(dp->d_name)-5] - '0'; 
       //Reading Image from Bridge
-      if (ReadImageFromFile(filename_qfd, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 1, imgin_unsigned, AT_INPUT_SIZE*sizeof(unsigned char), 0, 0)) {
+      if (ReadImageFromFile(filename_qfd, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, AT_INPUT_COLORS, ImgIn, AT_INPUT_SIZE*sizeof(unsigned char), 0, 0)) {
         printf("Failed to load image %s\n", filename_qfd);
         return 1;
-      }
-      /*--------------------convert to signed in [-128:127]----------------*/
-      for(int i=0; i<AT_INPUT_SIZE; i++){
-        imgin_signed[i] = (signed char) ( ((int) (imgin_unsigned[i])) - 128);
       }
       #ifdef PRINT_IMAGE
         for (int i=0; i<AT_INPUT_SIZE; i++) {
