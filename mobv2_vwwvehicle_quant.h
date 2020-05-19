@@ -2,7 +2,7 @@
 #ifndef __VWW_H__
 #define __VWW_H__
 
-#define __PREFIX(x) mobv2_vwwvehicle_quant_asym ## x
+#define __PREFIX(x) mobv2_vwwvehicle_quant ## x
 
 #include "Gap.h"
 

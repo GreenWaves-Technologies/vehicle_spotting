@@ -76,4 +76,10 @@
     #define __int_ssize_t unsigned int
 #endif
 
+#ifndef SILENT
+    #define PRINTF printf
+#else
+    #define PRINTF(...) ((void) 0)
+#endif
+
 #endif
