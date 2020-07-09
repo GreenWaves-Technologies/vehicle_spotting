@@ -1,1 +1,4 @@
 BUILD*
+*.dat
+*_emul
+!nntool_script*

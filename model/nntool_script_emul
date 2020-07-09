@@ -1,5 +1,0 @@
-adjust
-fusions --scale8
-qshow
-imageformat input_1 bw8 offset_int8
-save_state

@@ -1,17 +1,17 @@
 # VWW for vehicles
 
-In this project we have developed an edge-AI application for recognizing vehicle (visualwakewords vehicles) in grayscale images. The specific target of this application is the GAP-board family from Greenwaves-technologies.
-After having installed the [GAP_sdk](https://github.com/GreenWaves-Technologies/gap_sdk) you can directly try the application on a sample image (_images/himax_1.ppm_).
+In this project we have developed an edge-AI application for recognizing vehicle (visualwakewords vehicles) with rgb and grayscale images. The specific target of this application is the GAP-board family from Greenwaves-technologies.
+After having installed the [GAP_sdk](https://github.com/GreenWaves-Technologies/gap_sdk) you can directly try the application on a sample image (_images/COCO_val2014_000000000641.ppm_).
 Some of the trained .tflite network for the task are already in the _model_ folder. To convert the network to GAP code and run it on the platform simulator (gvsoc) you can directly run:
 ```
-make clean all run platform=gvsoc
+make clean all run platform=gvsoc RGB=1 or 0
 ```
 In the following are presented in details the training of the network on a custom visualwakewords task (or even another image classification task) and the steps for GAP platform porting inside the Makefile magic.
 
 ## Requirements
 > Tensorflow 1.13
 >
-> GapSDK 3.2 or more
+> GapSDK 3.5+
 
 ## Table of contents:
   - [Dataset Preparing and training](#dataset-preparing-and-training)
@@ -237,13 +237,12 @@ static void RunNetwork()
 }
 ```
 
+## Accuracy validation in _\_\_EMUL\_\__ mode
 
-## Validation in _\_\_EMUL\_\__ mode
-
-Autotiler provides another, very useful, run mode, the _\_\_EMUL\_\__. With this flag enabled the Autotiler replaces all its GAP parallel code and built-in funcitons with x86 operations which can be executed by normal PC. This allows you to test the results of your deployed network with the same code generated for the platform, but with a much faster execution compared to the gvsoc or platform one. _main\_emul.c_ and _emul.mk_ present the usage of this feature. _main\_emul.c_ gets a folder path and iterates over the files (images) present in it. For each of them the Autotiler network is run and the result is checked versus the ground truth label which is written in the last character of the filename. At the end, a full report of accuracy, false positives and false negatives is reported.
+Autotiler provides another, very useful, run mode, the _\_\_EMUL\_\__. With this flag enabled the Autotiler replaces all its GAP parallel code and built-in funcitons with x86 operations which can be executed by normal PC. This allows you to test the results of your deployed network with the same code generated for the platform, but with a much faster execution compared to the gvsoc or platform one. _main\_emul.c_ and _emul.mk_ present the usage of this feature. _main\_emul.c_ gets a folder path and iterates over the files (images) present into it. For each of them the Autotiler network is run and the result is checked versus the ground truth label which is written in the last character of the filename. At the end, a full report of accuracy, false positives and false negatives is reported.
 
 ```
-make -f emul.mk clean all
+make -f emul.mk clean all TEST_ACC=1 RGB=0 or 1
 ```
 To generate the executable.
 ```

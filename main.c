@@ -15,226 +15,155 @@
  */
 
 #include <stdio.h>
-#include <limits.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
-#include "mobv2_vwwvehicle_quantKernels.h"
-
-//#include "setup.h"
-#include "ImgIO.h"
-//#include "cascade.h"
-//#include "display.h"
-
-#ifdef __EMUL__
- #ifdef PERF
-  #undef PERF
- #endif
+#ifdef RGB
+	#include "mobv2_035_rgbKernels.h"
 #else
- #include "pmsis.h"
- #include "bsp/flash/hyperflash.h"
- #include "bsp/bsp.h"
- #include "bsp/buffer.h"
- #include "bsp/camera/himax.h"
- #include "bsp/ram/hyperram.h"
- #include "bsp/display/ili9341.h"
+	#include "mobv2_1_bwKernels.h"
 #endif
 
-//#define HAVE_CAMERA
-#define HAVE_LCD
+#include "gaplib/ImgIO.h"
+
+#include "pmsis.h"
+#include "bsp/ram/hyperram.h"
+#include "bsp/flash/hyperflash.h"
+#include "bsp/bsp.h"
+#include "bsp/buffer.h"
+#include "bsp/camera.h"
+#include "bsp/camera/himax.h"
+#include "bsp/camera/gc0308.h"
+#include "bsp/display/ili9341.h"
+
+#if SILENT
+#define PRINTF(...) ((void) 0)
+#else
+#define PRINTF printf
+#endif
+
+#define CAMERA_WIDTH    (324)
+#define CAMERA_HEIGHT   (244)
+#ifdef RGB
+  #define CAMERA_COLORS (3)
+#else
+  #define CAMERA_COLORS (1)
+#endif
+#define IMAGE_SIZE 		(CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS)
+#define AT_INPUT_SIZE 	(AT_INPUT_WIDTH*AT_INPUT_HEIGHT*AT_INPUT_COLORS)
 
 #ifndef HAVE_CAMERA
-	 #define __XSTR(__s) __STR(__s)
-	 #define __STR(__s) #__s 
-
-	#define IMAGE_SIZE (CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS)
+	#define __XSTR(__s) __STR(__s)
+	#define __STR(__s) #__s 
 #endif
 
-
-#ifdef HAVE_LCD
-	#define LCD_WIDTH    320
-	#define LCD_HEIGHT   240
-#endif
-
-#define CAMERA_WIDTH    324
-#define CAMERA_HEIGHT   244
-
-#define IMAGE_SIZE (CAMERA_WIDTH*CAMERA_HEIGHT)
-
-struct pi_device camera;
 static pi_buffer_t buffer;
-
-#ifdef HAVE_LCD
-	struct pi_device display;	
-#endif
-
-#define AT_INPUT_SIZE (AT_INPUT_WIDTH*AT_INPUT_HEIGHT*AT_INPUT_COLORS)
-
-
+struct pi_device camera;
+struct pi_device ili;
+#ifdef PERF
+	L2_MEM rt_perf_t *cluster_perf;
+#endif	
 
 // Softmax always outputs Q15 short int even from 8 bit input
 L2_MEM short int *ResOut;
-//L2_MEM unsigned char *imgin_signed;
-L2_MEM unsigned char *imgin_unsigned;
-
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
 
-#ifdef PERF
-L2_MEM rt_perf_t *cluster_perf;
-#endif
+/* ------------------------------- function to print text on display -------------------- */
+void draw_text(struct pi_device *display, const char *str, unsigned posX, unsigned posY, unsigned fontsize)
+{
+    writeFillRect(ili, 0, 340, posX, fontsize*8, 0xFFFF);
+    setCursor(ili, posX, posY);
+    writeText(ili, str, fontsize);
+}
 
-#ifdef HAVE_LCD
+/* --------------------------------- CAMERA & LCD OPEN ----------------------------------- */
 static int open_display(struct pi_device *device)
 {
   struct pi_ili9341_conf ili_conf;
-
   pi_ili9341_conf_init(&ili_conf);
-
   pi_open_from_conf(device, &ili_conf);
-
   if (pi_display_open(device))
     return -1;
-
-  if (pi_display_ioctl(device, PI_ILI_IOCTL_ORIENTATION, (void *)PI_ILI_ORIENTATION_90))
+  if (pi_display_ioctl(device, PI_ILI_IOCTL_ORIENTATION, (void *)PI_ILI_ORIENTATION_180))
     return -1;
-
   return 0;
 }
-#endif
 
 static int open_camera_himax(struct pi_device *device)
 {
   struct pi_himax_conf cam_conf;
-
   pi_himax_conf_init(&cam_conf);
-
   pi_open_from_conf(device, &cam_conf);
   if (pi_camera_open(device))
     return -1;
-
   return 0;
 }
 
+static int open_camera_rgb(struct pi_device *device)
+{
+    printf("Opening GC0308 camera\n");
+    struct pi_gc0308_conf cam_conf;
+    pi_gc0308_conf_init(&cam_conf);
+    cam_conf.format = PI_CAMERA_QVGA;
+    pi_open_from_conf(device, &cam_conf);
+    if (pi_camera_open(device))
+        return -1;
+    return 0;
+}
+
+/* ---------------------------------------------------------------------------------------- */
 
 static void RunNetwork()
 {
-  printf("Running on cluster\n");
+  PRINTF("Running on cluster\n");
 #ifdef PERF
   printf("Start timer\n");
   gap_cl_starttimer();
   gap_cl_resethwtimer();
 #endif
-  __PREFIX(CNN)(imgin_unsigned, ResOut);
-//  printf("Runner completed\n");
-//  printf("\n");
-
+  __PREFIX(CNN)(ResOut);
 }
 
-#if defined(__EMUL__)
-int main(int argc, char *argv[]) 
-{
-  if (argc < 2) {
-    printf("Usage: %s [image_file]\n", argv[0]);
-    exit(1);
-  }
-  char *ImageName = argv[1];
-#else
+
 int body(void)
 {
+	char result_out[30];
 /*-----------------voltage-frequency settings-----------------------*/
-	rt_freq_set(RT_FREQ_DOMAIN_FC,50000000);
-	rt_freq_set(RT_FREQ_DOMAIN_CL,150000000);
-	PMU_set_voltage(1200,0);
-/*------------------------HyperRAM---------------------------*/
-//	printf("Configuring Hyperram..\n");
-//	struct pi_device HyperRam;
-//	struct pi_hyperram_conf hyper_conf;
-//
-//	pi_hyperram_conf_init(&hyper_conf);
-//	pi_open_from_conf(&HyperRam, &hyper_conf);
-//
-//	if (pi_ram_open(&HyperRam))
-//	{
-//	  printf("Error: cannot open Hyperram!\n");
-//	  pmsis_exit(-2);
-//	}
-//
-//	printf("HyperRAM config done\n");
-//
-//	// The hyper chip need to wait a bit.
-//	// TODO: find out need to wait how many times.
-//	pi_time_wait_us(1*1000*1000);
-//
-/*----------------------HyperFlash & FS-----------------------*/
-//	printf("Configuring Hyperflash and FS..\n");
-//	struct pi_device fs;
-//	struct pi_device flash;
-//	struct pi_fs_conf fsconf;
-//	struct pi_hyperflash_conf flash_conf;
-//	pi_fs_conf_init(&fsconf);
-//
-//	pi_hyperflash_conf_init(&flash_conf);
-//	pi_open_from_conf(&flash, &flash_conf);
-//
-//	if (pi_flash_open(&flash))
-//	{
-//	  printf("Error: Flash open failed\n");
-//	  pmsis_exit(-3);
-//	}
-//	fsconf.flash = &flash;
-//
-//	pi_open_from_conf(&fs, &fsconf);
-//
-//	int error = pi_fs_mount(&fs);
-//	if (error)
-//	{
-//	  printf("Error: FS mount failed with error %d\n", error);
-//	  pmsis_exit(-3);
-//	}
-//
-//	printf("FS mounted\n");
+	pi_freq_set(RT_FREQ_DOMAIN_FC,250000000);
+	pi_freq_set(RT_FREQ_DOMAIN_CL,175000000);
+//	PMU_set_voltage(1200,0);
 
-
-
-/*-----------------Open Camera  Display-----------------------*/
+/*----------------- Open Camera Display-----------------------*/
 #ifdef HAVE_LCD
-	if (open_display(&display))
-	{
-	printf("Failed to open display\n");
-	pmsis_exit(-1);
+	if (open_display(&ili)){
+		printf("Failed to open display\n");
+		pmsis_exit(-1);
 	}
+    writeFillRect(&ili, 0, 0, 240, 320, 0xFFFF);
+    writeText(&ili, "GreenWaves Technologies", 2);
 #endif
 
 #ifdef HAVE_CAMERA
-	if (open_camera_himax(&camera))
-	{
-	printf("Failed to open camera\n");
-	pmsis_exit(-2);
+	#ifdef RGB
+	  int err = open_camera_rgb(&camera);
+	#else
+	  int err = open_camera_himax(&camera);
+	#endif
+	if (err) {
+		printf("Failed to open camera\n");
+		pmsis_exit(-2);
 	}
+	#ifdef RGB
+	    pi_camera_set_crop(&camera, (320-AT_INPUT_WIDTH)/2, (240-AT_INPUT_HEIGHT)/2, AT_INPUT_WIDTH, AT_INPUT_HEIGHT);
+	#endif
 #endif
 
-/*------------------- Allocate Image Buffer ------------------------*/
-	printf("Going to alloc the image buffer!\n");
-	imgin_unsigned = pmsis_l2_malloc(IMAGE_SIZE* sizeof(char));
-	if(imgin_unsigned==NULL) {
-	  printf("Image buffer alloc Error!\n");
-	  pmsis_exit(-1);
-	}	
-	//imgin_signed = (signed char*) imgin_unsigned;
+/*-------------------------ALLOCATE THE OUTPUT TENSOR------------------------*/
+	ResOut = (short int *) AT_L2_ALLOC(0, 2*sizeof(short int));
+	if (ResOut==0) {
+		printf("Failed to allocate Memory for Result (%ld bytes)\n", 2*sizeof(short int));
+		return 1;
+	}
 
-
-
-/*------------------- Config Buffer for LCD Display ----------------*/
-	buffer.data = imgin_unsigned;//+AT_INPUT_WIDTH*2+2;
-	buffer.stride = 0;
-
-	// WIth Himax, propertly configure the buffer to skip boarder pixels
-	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, imgin_unsigned);//+AT_INPUT_WIDTH*2+2);
-	pi_buffer_set_stride(&buffer, 0);
-	pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 1, PI_BUFFER_FORMAT_GRAY);
-
-/*-------------------OPEN THE CLUSTER-------------------------------*/
+/*------------------------ OPEN THE CLUSTER -------------------------------*/
 	struct pi_device cluster_dev;
 	struct pi_cluster_conf conf;
 	pi_cluster_conf_init(&conf);
@@ -247,135 +176,133 @@ int body(void)
 	  printf("pi_cluster_task alloc Error!\n");
 	  pmsis_exit(-1);
 	}
-	printf("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
+	PRINTF("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
 	memset(task, 0, sizeof(struct pi_cluster_task));
 	task->entry = &RunNetwork;
 	task->stack_size = STACK_SIZE;
 	task->slave_stack_size = SLAVE_STACK_SIZE;
 	task->arg = NULL;
 
-#endif //Not Emulator
-
-
-/*----------------------ALLOCATE THE OUTPUT TENSOR-------------------*/
-	ResOut = (short int *) AT_L2_ALLOC(0, 2*sizeof(short int));
-	if (ResOut==0) {
-		printf("Failed to allocate Memory for Result (%ld bytes)\n", 2*sizeof(short int));
-		return 1;
-	}
-
-
 /*--------------------CONSTRUCT THE NETWORK-------------------------*/
-    printf("Constructor\n");
+    PRINTF("Constructor\n");
 	// IMPORTANT - MUST BE CALLED AFTER THE CLUSTER IS SWITCHED ON!!!!
 	if (__PREFIX(CNN_Construct)())
 	{
 	  printf("Graph constructor exited with an error\n");
 	  return 1;
 	}
-	printf("Constructor was OK!\n");
+	PRINTF("Constructor was OK!\n");
 
-/*-------------------reading input data-----------------------------*/
+/*------------------------ Config Buffer for LCD Display -------------------*/
+	buffer.data = Input_1;//+AT_INPUT_WIDTH*2+2;
+	buffer.stride = 0;
 
-	//while(1){
-
-    #ifdef HAVE_CAMERA
-
-		//OPEN HAVE_CAMERA 
-        pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
-        pi_camera_capture(&camera, imgin_unsigned, IMAGE_SIZE);
-        pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
-
-
-        // crop [AT_INPUT_HEIGHT x AT_INPUT_WIDTH]
-        int ps=0;
-        for(int i =0;i<CAMERA_HEIGHT;i++){
-        	for(int j=0;j<CAMERA_WIDTH;j++){
-        		if (i<AT_INPUT_HEIGHT && j<AT_INPUT_WIDTH){
-        			imgin_unsigned[ps] = imgin_unsigned[i*CAMERA_WIDTH+j];
-        			ps++;        			
-        		}
-        	}
-        }
-	  	
+	// WIth Himax, propertly configure the buffer to skip boarder pixels
+	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, Input_1);//+AT_INPUT_WIDTH*2+2);
+	pi_buffer_set_stride(&buffer, 0);
+	#ifdef RGB
+		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 2, PI_BUFFER_FORMAT_RGB565);
 	#else
-        #ifndef __EMUL__
-  			char *ImageName = __XSTR(AT_IMAGE);
-  		#endif
-		printf("Reading image from %s\n",ImageName);
-		//Reading Image from Bridge
-		if (ReadImageFromFile(ImageName, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 1, imgin_unsigned, AT_INPUT_SIZE*sizeof(unsigned char), IMGIO_OUTPUT_CHAR, 1)) {
-			printf("Failed to load image %s\n", ImageName);
-			return 1;
-		}
-		printf("Finished reading image %s\n", ImageName);
-
+		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 1, PI_BUFFER_FORMAT_GRAY);
 	#endif
 
-  	#ifdef HAVE_LCD
-  		pi_display_write(&display, &buffer, 0, 0, AT_INPUT_WIDTH, AT_INPUT_HEIGHT);
-  	#endif 
+/* ----------------------------------------------------------- MAIN LOOP ---------------------------------------------------------------- */
+	int count = 0;
+	while(1){
+		/*------------------- reading input data -----------------------------*/
+	    #ifdef HAVE_CAMERA
+			#ifdef RGB
+			    pi_task_t task_1;
+	            //uDMA max transfer is 128KB but input is less (224*224*2[rgb565]) -> only one transfer
+	            pi_camera_capture_async(&camera, Input_1, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2,pi_task_block(&task_1));
+	            pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+	            pi_task_wait_on(&task_1);
+	            pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);	
+		    #else
+		        pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+		        pi_camera_capture(&camera, Input_1, IMAGE_SIZE);
+		        pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
+		        // Image Cropping to [ AT_INPUT_HEIGHT x AT_INPUT_WIDTH ]
+			    int ps=0;
+			    for(int i =0;i<CAMERA_HEIGHT;i++){
+			    	for(int j=0;j<CAMERA_WIDTH;j++){
+			    		if (i<AT_INPUT_HEIGHT && j<AT_INPUT_WIDTH){
+			    			Input_1[ps] = Input_1[i*CAMERA_WIDTH+j];
+			    			ps++;        			
+			    		}
+			    	}
+			    } 	
+		  	#endif //CAMERA_TYPE
+		#else
+			char *ImageName = __XSTR(AT_IMAGE);
+			PRINTF("Reading image from %s\n",ImageName);
+			//Reading Image from Bridge
+			#ifdef RGB
+		  		img_io_out_t type = IMGIO_OUTPUT_RGB565;
+			#else
+		  		img_io_out_t type = IMGIO_OUTPUT_CHAR;  		
+			#endif
+			if (ReadImageFromFile(ImageName, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, AT_INPUT_COLORS, Input_1, AT_INPUT_SIZE*sizeof(unsigned char), type, 0)) {
+				printf("Failed to load image %s\n", ImageName);
+				return 1;
+			}
+		#endif //HAVE_CAMERA
 
-	/*--------------------convert to signed in [-128:127]----------------*/
-	/*for(int i=0; i<AT_INPUT_SIZE; i++){
-		imgin_signed[i] = (signed char) ( ((int) (imgin_unsigned[i])) - 128);
-	}*/
+	  	#ifdef HAVE_LCD
+	  		pi_display_write(&ili, &buffer, 8, 20, AT_INPUT_WIDTH, AT_INPUT_HEIGHT);
+	  	#endif 
 
+		/*-----------------------CALL THE MAIN FUNCTION----------------------*/
+			pi_cluster_send_task_to_cl(&cluster_dev, task);
+		/*------------------------- check results ---------------------------*/
+			float vehicle_not_seen = FIX2FP(ResOut[0], 15);    
+	        float vehicle_seen = FIX2FP(ResOut[1], 15);
 
-/*-----------------------CALL THE MAIN FUNCTION----------------------*/
-//	printf("Call cluster\n");
-#ifdef __EMUL__
-	RunNetwork(NULL);
-#else
-	pi_cluster_send_task_to_cl(&cluster_dev, task);
-#endif
+        	#ifndef HAVE_CAMERA     
+		        if (vehicle_seen > vehicle_not_seen) {
+		            PRINTF("vehicle seen! confidence %f\n", vehicle_seen);
+		        } else {
+		            PRINTF("no vehicle seen %f\n", vehicle_not_seen);
+		        }
+     	   	#else
+		        if (vehicle_seen > vehicle_not_seen) {
+		            sprintf(result_out,"YES (%f)",vehicle_seen);
+    				writeFillRect(&ili, 0, 270, 244, 50, 0x07E0);
+		            draw_text(&ili, result_out, 30, 250, 2);
+		            }
+		        else{
+		            sprintf(result_out,"NO  (%f)",vehicle_not_seen);
+    				writeFillRect(&ili, 0, 270, 244, 50, 0xF800);
+		            draw_text(&ili, result_out, 30, 250, 2);
+		        }
+		    #endif
 
-
-/*-----------------------CALL THE MAIN FUNCTION----------------------*/
-  if (ResOut[1] > ResOut[0]) {
-    printf("There is a vehicle! [whith score %d vs %d]\n", ResOut[1], ResOut[0]);
-  } else {
-    printf("NO vehicle! [whith score %d vs %d]\n", ResOut[0], ResOut[1]);
-  }
-
-
-
-#ifdef PERF
-/*------------------------Performance Counter------------------------*/
-	{
-		unsigned int TotalCycles = 0, TotalOper = 0;
-		printf("\n");
-		for (int i=0; i<(sizeof(AT_GraphPerf)/sizeof(unsigned int)); i++) {
-			printf("%45s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", AT_GraphNodeNames[i], AT_GraphPerf[i], AT_GraphOperInfosNames[i], ((float) AT_GraphOperInfosNames[i])/ AT_GraphPerf[i]);
-			TotalCycles += AT_GraphPerf[i]; TotalOper += AT_GraphOperInfosNames[i];
-		}
-		printf("\n");
-		printf("\t\t\t %s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", "Total", TotalCycles, TotalOper, ((float) TotalOper)/ TotalCycles);
-		printf("\n");
+		#ifdef PERF
+		/*------------------------Performance Counter------------------------*/
+			{
+				unsigned int TotalCycles = 0, TotalOper = 0;
+				printf("\n");
+				for (int i=0; i<(sizeof(AT_GraphPerf)/sizeof(unsigned int)); i++) {
+					printf("%45s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", AT_GraphNodeNames[i], AT_GraphPerf[i], AT_GraphOperInfosNames[i], ((float) AT_GraphOperInfosNames[i])/ AT_GraphPerf[i]);
+					TotalCycles += AT_GraphPerf[i]; TotalOper += AT_GraphOperInfosNames[i];
+				}
+				printf("\n");
+				printf("\t\t\t %s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", "Total", TotalCycles, TotalOper, ((float) TotalOper)/ TotalCycles);
+				printf("\n");
+			}
+		#endif
 	}
-#endif
-
-#ifdef HAVE_CAMERA
-#endif
-	//}//while
 
 	/*-----------------------Desctruct the AT model----------------------*/
 		__PREFIX(CNN_Destruct)();
 
-
-#ifndef __EMUL__
-	pmsis_exit(0);
-#endif
-	
 	printf("Ended\n");
-	
+	pmsis_exit(0);	
 	return 0;
 }
 
-#ifndef __EMUL__
 int main(void)
 {
     printf("\n\n\t *** Visualwakewords for vehicle ***\n\n");
     return pmsis_kickoff((void *) body);
 }
-#endif
