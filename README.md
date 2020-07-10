@@ -13,7 +13,7 @@ Nevertheless, you can follow the same steps to easily and fastly build your own 
 
 ![image](./gapflow.png)
 
-# Getting Started with Vehicles Spotting on a GAP8 camera system
+# Getting Started with Vehicles Spotting on a GAP8-based camera system
 The repository includes a trained TF model for image vehicle spotting. 
 To covert the model into C code with the GAP *flow* and run the application-code on a [GAP8-based camera system](https://greenwaves-technologies.com/store/): 
 ```
@@ -32,8 +32,16 @@ where the visual pipeline is fed with a sample image loaded through JTAG (_image
 In the following, we detail the design steps to train and deploy a custom visual spotting model for vehicle detectecion.
 
 ## Requirements
-> Tensorflow 1.13
+
+### Model Training
+
+> Tensorflow 1.13 
 >
+> Tensorflow Slim 
+
+Concerning the TF Slim scripts, we refer to the committed version added as a submodule to the repository. 
+
+### Model Deployment
 > GapSDK 3.5+
 
 ## Table of contents:
@@ -41,34 +49,54 @@ In the following, we detail the design steps to train and deploy a custom visual
   - [Deep Model Deployment on GAP8 with the GAP *flow*](#nn-on-platform-with-gapflow)
   - [Accuracy Validation with Platform Emulator](#validation-with-platform-emulator)
   
-## Dataset Preparing and training
+## Dataset Preparation and DL Model training
 
-To generate the training and validation dataset and to train the Neural Network model we used the open source [Image Classification](https://github.com/tensorflow/models/tree/master/research/slim) template released by the tensorflow team in its TF1.x version with the usage of slim.
-The original code can train a Neural Network model able to signal the presence of persons in the input images. After few, very simple code changes we have extended this feature to one (or more) [object in the COCO dataset](https://github.com/amikelive/coco-labels/blob/master/coco-labels-2014_2017.txt). With this tutorial, we will guide you through the usage of the modified framework to reproduce our results for vehicles signaling.
+We refer to the open-source [Tensorflow Slim] framework (TF1.x) to build a custom image dataset and to train the DL model for visual image spotting.
+With this tutorial, we will guide you through the usage of the TF framework to reproduce our results for vehicles spotting.
+Specifically we: 
 
-### Download COCO and distill visualwakewords
+1. Build a dataset
+2. Train a DL model, leveraging on quantization-aware training
+3. Freeze the graph and convert to TFlite format
 
-Visualwakewords dataset derives from a distilling process applied to COCO. For each image in the source dataset, the present/not-present label is saved in a separated annotation file wether in the original COCO-annotation for that image is present or not the class of interest, in our case it consist in a list of objects ('bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat').
-The TF framework provides a script to automatically download (if not already done) and convert the COCO dataset into the visualwakewords on desired class or classes. It produces a dataset in the TF-Record format:
+Afterwars, the GAP *flow* is fed with the tflite model.
+
+
+### Download COCO and distill a custom dataset
+
+The custom dataset for image vehicle spotting is distilled from the [COCO dataset](https://github.com/amikelive/coco-labels/blob/master/coco-labels-2014_2017.txt):
+the presence of the target object - *vehiles* -  determines the new label of every image of the source dataset. 
+In our case, the target object consists of a list of classes: 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat'.
+The TF framework provides a script to automatically download (if not already done) 
+and convert the COCO dataset into the new  dataset for image visual spotting, according to the TF-Record format:
 ```
 python3 slim/download_and_convert.py --dataset_name=visualwakewords  \
                                      --dataset_dir=visualwakewords_vehicle  \
-                                     --foreground_class_of_interest='bicycle, car, motorcycle, ...'  \
+                                     --foreground_class_of_interest='bicycle','car','motorcycle','airplane','bus','train','truck','boat'\
                                      --small_object_area_threshold=0.05  \
                                      --download  \
                                      --coco_dir=coco  \
 ```
+Arguments details:
 - _dataset_name_: name of the dataset to download (one of "flowers", "cifar10", "mnist", "visualwakewords")
 - _dataset\_dir_: where to store the dataset
 in case of "visualwakewords":
 - _foreground\_class\_of\_interest_: list of COCO object which you want to detect in images
 - _small\_object\_area\_threshold_: minimum percentage of area of the interested object to promote the image to the visualwakewords label of true
-- _download_: whether to download the entire coco dataset or not if already downloaded
+- _download_: whether to download the entire coco dataset or not if already did it
 - _coco\_dir_: if download=False where to store the coco dataset, if download=True where it is stored
+
+Now, the dataset is ready to feed the training process. 
 
 ### Model Training
 
-Now that the dataset is ready we can train a Neural Network on it. For these experiments we used a mobilenet_v2 (with 224x224 input dimensions and width multiplier of 1), the slim/nets folder contains several example model which can be used as well.
+We select a MobileNetV2 to solve the image classification problem, 
+with input resolution 224x224 input dimensions and width multiplier of 1. 
+However, different models included in the TF SLim framework can be used as well.
+
+A quantization-aware finetuning process takes places durint the training phase. 
+The model training is launched with:
+
 ```
 python3 train_image_classifier.py \
 	      --train_dir='vww_vehicle_train_grayscale' \
@@ -80,24 +108,28 @@ python3 train_image_classifier.py \
 	      --checkpoint_path='./vww_vehicle_train_grayscale/' \
 	      --max_number_of_steps=100000   \  
 	      --num_clones=1   \
-        --quantize_delay=90000  \
+          --quantize_delay=90000  \
 	      --use_grayscale
 ```
-- _train\_dir_: where to store checkpoints and training info
-- _dataset\_name_: again the name of the dataset to train with
-- _dataset\_split_: which dataset partition to use for training
-- _dataset\_dir_: where to find the datasets TF-Records
-- _model\_name_: name of the netowork architecture to train (_slim/nets/nets\_factory.py_ for a complete list of supported networks)
-- _checkpoint\_path_: where to find the checkpoint files to start from, if not given the network will be trained from scratch
+- _use\_grayscale_: (optional): to apply grayscale conversion to the dataset samples
+- _train\_dir_: path to store checkpoints and training info
+- _dataset\_name_: training dataset name
+- _dataset\_split_: dataset partition to use for training
+- _dataset\_dir_: path of dataset (TF-Records)
+- _model\_name_: netowork architecture to train (_slim/nets/nets\_factory.py_ for a complete list of supported networks)
+- _checkpoint\_path_: path of the folder contrianing the checkpoint files, if not defined the network is trained from scratch
 - _max\_number\_of\_steps_: number of training steps
 - _num\_clones_: number of GPU to use for training
 - _quantize\_delay_: after how many steps the model is quantized
 
-NOTE: since the target device leverages on int8 symmetrically quantized operators, the quantization step of tensorflow contrib has been substituted with its experimental version (_contrib\_quantize.experimental\_create\_training\_graph\_(symmetric=True)_). (To avoid this and use the default TF1.x quantization scheme is sufficient to specify _--quantize\_sym=False_)
+Since the target platform features optimized INT8 computational kernels, 
+the quantization API of TensorFlow contrib has been replaced with its experimental version 
+(_contrib\_quantize.experimental\_create\_training\_graph\_(symmetric=True)_). 
+On the contrary, you can force: _--quantize\_sym=False_ .
 
-### Floating Point Model evaluation
+### Model Evaluation
 
-The model can now be evaluated in its floating point version on the validation dataset:
+The model can now be evaluated the validation dataset:
 ```
 python3 eval_image_classifier.py   \   
 	      --checkpoint_path='vww_train_vehicle_grayscale/'   \   
@@ -109,20 +141,21 @@ python3 eval_image_classifier.py   \
         --quantize  \ #if the model has been trained with quantization
 	      --use_grayscale
 ```
-The script will evaluate the network accuracy as number of well predicted images divided by the total number of images, the number of false positives and false negatives. All these metrics can be inspected through tensorboard:
+The script computes the ratio of correct predictions, 
+the number of false positives and false negatives. 
+All these metrics can be inspected through tensorboard:
 ```
 tensorboard --logdir='vww_eval_vehicle_grayscale'
 ```
 
-### Train & evaluation loop
-
-To inspect the model behaviour during training, i.e. the validation vs training loss, we release a bash script which evaluates the model validation accuracy after every epoch. Example of usage:
+To investigate the validation score at training time, 
+we have added a bash script which evaluates the model validation accuracy at every epoch:
 ```
 ./train_eval_loop.sh -m ${MODEL_NAME} -b ${BATCH_SIZE} -e ${NUM_EPOCHS} -l ${LEARNING_RATE} -q ${QUANT_DELAY} -i ${IMAGE_SIZE} -g [to use grayscale] 
 ```
-NOTE: in the script are coded the dataset name and directory. Change them accordingly to your project.
+NOTE: dataset name and directory are hardcoded in the script. Change them accordingly in your project.
 
-### Model export and freeze
+### Model export, freeze and conversion to tflite
 
 To export the inference graph, i.e. the tensorflow graphdef file for the inference:
 ```
@@ -133,8 +166,7 @@ python3 slim/export_inference_graph.py
         --quantize  \
         --use_grayscale
 ```
-
-If you then want to use the resulting model with your own or pretrained checkpoints as part of a mobile model, you can run the tensorflow built in command _freeze\_graph_ to get a graph def with the variables inlined as constants using:
+To obtain a frozen graph:
 ```
 freeze_graph \
   --input_graph=./mobilenet_v2_224_grayscale.pb \
@@ -145,12 +177,7 @@ freeze_graph \
 ```
 
 To inspect the graph and get the output_node_names you can use [Netron](https://lutzroeder.github.io/netron/)
-
-## NN on platform with GAPFlow
-
-Now we are ready for the effective deployment on GAP platform. To address this, we will show you the usage of the GAPFlow, a toolchain developed by Greenwaves-technologies for Neural Network porting on their devices. You can find the installation guide [here](https://github.com/GreenWaves-Technologies/gap_sdk).
-First of all, we will use the __nntool__ for translating the high level model description into an internal description which will be used by the __Autotiler__. This tool will leverage on the predictable memory access pattern of convolutional neural network to optimize the C-code which runs on the platform.
-To do this we need a tflite model description:
+Lastly, the TFLite is generated by means of:
 ```
 tflite_converter --graph_def=./frozen_mbv2_224_grayscale.pb  \
                  --output_file=mbv2_grayscale.tflite  \
@@ -162,114 +189,103 @@ tflite_converter --graph_def=./frozen_mbv2_224_grayscale.pb  \
                  --mean_val=128
 ```
 
+
+
+## Deep Model Deployment on GAP8 with the GAP *flow*
+
+The GAP *flow* converts a frozen TFlite model into a GAP-optimized C code. 
+
+The GAP *flow* consists of a two-steps procedure.
+Firstly, we use the __nntool__ to convert the high level tflite model description 
+into an special graph description, which will be used by the __Autotiler__ tool. This 
+latter leverages on the predictable memory access pattern 
+of convolutional neural network to generate optimized C-code for the GAP platforms.
+
+
 ### nntool
-This tool, beside generate the code needed by the __Autotiler__ to optimize the memory accesses, allows the user to inspect the model before porting and evaluate its accuracy on the platform thanks to specific internal computational kernels which emulate the platform behaviour.
-We can open the generated tflite with nntool:
+This tool, besides producing the graph description needed by the __Autotiler__ 
+to optimize the memory accesses, 
+includes debug features to inspect the target DL model.
+
+Initially, the tflite model is opened with nntool:
 ```
 nntool mbv2_grayscale.tflite [-q to load also the quantization information]
 show
 ```
-_show_ will display the list of layers and the network topology. Don't worry if the model was quantized with TF asymmetric scheme, nntool will translate automatically to GAP scheme at import time.
-
-The model can be now modified to match the __Autotiler__ execution model:
+_show_ will display the list of layers and the network topology. 
+The model graph is now modified to match the __Autotiler__ execution model:
 ```
 adjust
 fusions --scale8
 ```
-This two commands tranlsate the graph tensors from a HxWxC order (TF) to CxHxW (Autotiler). Moreover, fusions spots all the substructures in the graph which the Autotiler can handle with a single optimized layer (e.g. Conv+Pool+Relu into one single layer).
+This two commands tranlsate the graph tensors from a HxWxC data layout (TF) to CxHxW data layout (GAP8 computational kernels). 
+Moreover, fusions finds and replaces all the subgraph portions that the Autotiler can handle with a 
+single optimized layer (e.g. Conv+Pool+Relu into one single layer).
 
 __Only if the model was not quantized:__
+
+The model runs inferences on several images, i.e. the calibration dataset, to estimate the activation quantization ranges (post-training quantization). 
+Weights and bias quantization ranges are computed statically.
 ```
 aquant -f 8 -s calibatrion_images/*
 ```
-The model is executed on several images and calibrates the activation quantization ranges beside the constant values ranges for weights and biases (post-training quantization).
-
-The nntool can also validate the accuracy of the model over a validation dataset of images:
+The nntool can also validate the accuracy of the model over a validation dataset:
 ```
 validation dataset/* [-q to run with quantized kernels]
 ```
-there are several option for this command (see _--help_ for more information), the default behaviour will check the last character of the filename to read the label (e.g. COCO_0000000_1.png means that the true value of the prediction is 1).
-
-If the results are poor you can inspect the quantization and see if the error introduced by it is too large and is the cause of the accuracy drop:
+the default behaviour (see _--help_ for more information) interpretes the last character of 
+the filename as the label (e.g. COCO_0000000_1.png means that the true value of the prediction is 1).
+If the validation scores are poor, you can inspect the quantization log and see if the quantization error 
+measured in terms of layer-wise QSNR (quantization signal-to-noise-ratio) wrt float values is too high: 
 ```
 qerror image.png
 ```
-will execute the model in both float and quantized version and compare the two results computing the QSNR (quantization signal-to-noise-ratio) for each layer.
-
-NOTE: every time the execution is run in nntool the input must be preprocessed accordingly to what is done in the training process. For example, in our case the model expects a [-1:1] input, to do so we need to set an input function in nntool which translate the [0:255] input to what we need:
-```
-set input_norm_func 'x: x/128-1'
-```
-
-Before saving the nntool graph and generate the C code, we insert in the graph also the Autotiler layer for the image preprocessing:
+NOTE: wnen running inference in nntool, the input must be preprocessed accordingly 
+to what it is done in the training process. For example, in our case the model expects a [-1:1] input but 
+input data belongs to the range [0:255], a normalization input function can be configured or selected among the ones available:
 ```
 imageformat input_1 bw8 offset_int8
 ```
-This inserts in the graph the parallel and with optimal memory movements of the input preprocessing function described above.
 
-At the end you can save the nntool state and reuse it afterwards:
+Lastly, the nntool state can be saved:
 ```
 save_state
 ```
-This will save the adjusted+fused+quantized nntool graph in a .json file beside all its parameters .nnparam. At this point you can generate the Autotiler Model code from the nntool saved state and the constants tensors files for weights and biases:
+This will save the adjusted+fused+quantized nntool graph in a .json file beside all its parameters .nnparam. 
+At this point you can generate the Autotiler Model code from the nntool saved state and the constants tensors 
+files for weights and biases:
 ```
 nntool -g model.json -m ATModel.c -T path/to/tensors/folder
 ```
+### autotiler code generation
 
-These steps are automatized in the common/model_rules.mk beside the Autotiler model compilation and code generation. The Autotiler will generate 3 functions which you will need to use in your application code:
+All the above steps are automatized in the common/model_rules.mk procedure, which also includes
+the Autotiler model compilation and code generation. 
+The Autotiler will generate 3 functions which you can place into your application code:
 - __Graph Constructor__: when it is called allocates all the tensors needed by the graph in memory
 - __Graph Run__: run the series of layers with optimal memory movements
 - __Graph Destructor__: deallocate all the structures allocated by the Constructor
 
 ### Run the code on GAP
 
-What is left is to run the effective network on the platform. Don't worry if you do not have one, Greenwaves provides a platform simulator [gvsoc](https://greenwaves-technologies.com/manuals/BUILD/GVSOC/html/index.html) which allows you to try the GAP features without the device itself. 
-You can see an example of application code in _main.c_. Apart from the initialization of all the peripherals (LCD, CAMERA, etc.) and tensors allocation, the main part here is the following:
+Now it is time to run visual infecences on a GAP8-based camera platform. 
+Don't worry if you do not have one, 
+Greenwaves provides a platform simulator [gvsoc](https://greenwaves-technologies.com/manuals/BUILD/GVSOC/html/index.html). 
+You can take a loog to the application code in _main.c_ and run it 
 ```
-/*-------------------OPEN THE CLUSTER-------------------------------*/
-  struct pi_device cluster_dev;
-  struct pi_cluster_conf conf;
-  pi_cluster_conf_init(&conf);
-  pi_open_from_conf(&cluster_dev, (void *)&conf);
-  pi_cluster_open(&cluster_dev);
-
-/*--------------------------TASK SETUP------------------------------*/
-  struct pi_cluster_task *task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
-  if(task==NULL) {
-    printf("pi_cluster_task alloc Error!\n");
-    pmsis_exit(-1);
-  }
-  printf("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
-  memset(task, 0, sizeof(struct pi_cluster_task));
-  task->entry = &RunNetwork;
-  task->stack_size = STACK_SIZE;
-  task->slave_stack_size = SLAVE_STACK_SIZE;
-  task->arg = NULL;
-```
-The code above configures the 8-core cluster available in the GAP8 Microcontrollers family. Moreover it sets up the task to be executed in parallel (_RunNetwork_ which implements the graph execution defined in ) besides the STACK sizes. Only after this set up the graph can be constructed and run (_\_\_PREFIX(CNN)_ is defined in _mobv2\_vwwvehicle\_quant\_asym.h_ and it matches the name of the function generated by the Autotiler).
-```
-static void RunNetwork()
-{
-  printf("Running on cluster\n");
-#ifdef PERF
-  printf("Start timer\n");
-  gap_cl_starttimer();
-  gap_cl_resethwtimer();
-#endif
-  __PREFIX(CNN)(imgin_unsigned, ResOut);
-}
+make clean all run [RGB=0 or 1]
 ```
 
-## Accuracy validation in _\_\_EMUL\_\__ mode
+## Accuracy validation in _\_\_EMUL\_\__ mode (Optional)
 
-Autotiler provides another, very useful, run mode, the _\_\_EMUL\_\__. With this flag enabled the Autotiler replaces all its GAP parallel code and built-in funcitons with x86 operations which can be executed by normal PC. This allows you to test the results of your deployed network with the same code generated for the platform, but with a much faster execution compared to the gvsoc or platform one. _main\_emul.c_ and _emul.mk_ present the usage of this feature. _main\_emul.c_ gets a folder path and iterates over the files (images) present into it. For each of them the Autotiler network is run and the result is checked versus the ground truth label which is written in the last character of the filename. At the end, a full report of accuracy, false positives and false negatives is reported.
-
+The Autotiler features an optional, yet very useful, run mode: the _\_\_EMUL\_\__ mode.  
+If the flag is enabled, the Autotiler replaces all the GAP parallel code and built-in 
+functions with x86 instructions, which can be executed by the host x86 PC. 
+This speed-up the simulation time for functional testing on the host PC, with respect then using the GVSOC platform.
+_main\_emul.c_ and _emul.mk_ leverages on this feature. 
+_main\_emul.c_ gets a folder path and run infernce over the data samples (images) to return the total accuracy: 
 ```
-make -f emul.mk clean all TEST_ACC=1 RGB=0 or 1
-```
-To generate the executable.
-```
+make -f emul.mk clean all TEST_ACC=1 RGB=0 or 1 
 ./mobv2_vwwvehicle_quant_asym_emul /path/to/dataset/
 ```
-To run the validation.
-NOTE: the code to read images from filesystem is the same as the application specific one which supports only non-compressed __.ppm__ images format.
+NOTE: only non-compressed __.ppm__ images format is supported.
