@@ -275,6 +275,7 @@ You can take a loog to the application code in _main.c_ and run it
 ```
 make clean all run [RGB=0 or 1]
 ```
+![Alt Text](demo_vehicle.gif)
 
 ## Accuracy validation in _\_\_EMUL\_\__ mode (Optional)
 
