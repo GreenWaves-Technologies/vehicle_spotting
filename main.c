@@ -55,6 +55,7 @@
 	#define __STR(__s) #__s 
 #endif
 
+struct pi_device gpio;
 static pi_buffer_t buffer;
 struct pi_device camera;
 struct pi_device ili;
@@ -66,6 +67,7 @@ struct pi_device ili;
 L2_MEM short int *ResOut;
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
 
+#ifdef HAVE_LCD
 /* ------------------------------- function to print text on display -------------------- */
 void draw_text(struct pi_device *display, const char *str, unsigned posX, unsigned posY, unsigned fontsize)
 {
@@ -86,6 +88,7 @@ static int open_display(struct pi_device *device)
     return -1;
   return 0;
 }
+#endif
 
 static int open_camera_himax(struct pi_device *device)
 {
@@ -139,6 +142,9 @@ int body(void)
 	}
     writeFillRect(&ili, 0, 0, 240, 320, 0xFFFF);
     writeText(&ili, "GreenWaves Technologies", 2);
+#else
+    pi_gpio_pin_configure(NULL, GPIO_USER_LED, PI_GPIO_OUTPUT);
+    pi_gpio_pin_write(NULL, GPIO_USER_LED, 0);
 #endif
 
 #ifdef HAVE_CAMERA
@@ -252,17 +258,25 @@ int body(void)
 	  		pi_display_write(&ili, &buffer, 8, 20, AT_INPUT_WIDTH, AT_INPUT_HEIGHT);
 	  	#endif 
 
+#ifdef GPIO
+pi_gpio_pin_write(&gpio, gpio_out, 1);
+pi_cluster_send_task_to_cl(&cluster_dev, task);
+pi_gpio_pin_write(&gpio, gpio_out, 0);
+#else
 		/*-----------------------CALL THE MAIN FUNCTION----------------------*/
 			pi_cluster_send_task_to_cl(&cluster_dev, task);
+#endif
 		/*------------------------- check results ---------------------------*/
 			float vehicle_not_seen = FIX2FP(ResOut[0], 15);    
 	        float vehicle_seen = FIX2FP(ResOut[1], 15);
 
-        	#ifndef HAVE_CAMERA     
+        	#ifndef HAVE_LCD     
 		        if (vehicle_seen > vehicle_not_seen) {
 		            PRINTF("vehicle seen! confidence %f\n", vehicle_seen);
+        			pi_gpio_pin_write(NULL, GPIO_USER_LED, 1);
 		        } else {
 		            PRINTF("no vehicle seen %f\n", vehicle_not_seen);
+        			pi_gpio_pin_write(NULL, GPIO_USER_LED, 0);
 		        }
      	   	#else
 		        if (vehicle_seen > vehicle_not_seen) {
