@@ -283,8 +283,8 @@ The Autotiler features an optional, yet very useful, run mode: the _\_\_EMUL\_\_
 If the flag is enabled, the Autotiler replaces all the GAP parallel code and built-in 
 functions with x86 instructions, which can be executed by the host x86 PC. 
 This speed-up the simulation time for functional testing on the host PC, with respect then using the GVSOC platform.
-_main\_emul.c_ and _emul.mk_ leverages on this feature. 
-_main\_emul.c_ gets a folder path and run infernce over the data samples (images) to return the total accuracy: 
+_main\_accuracy.c_ and _emul.mk_ leverages on this feature. 
+_main\_accuracy.c_ gets a folder path and run infernce over the data samples (images) to return the total accuracy: 
 ```
 make -f emul.mk clean all TEST_ACC=1 RGB=0 or 1 
 ./mobv2_vwwvehicle_quant_asym_emul /path/to/dataset/
