@@ -1,12 +1,35 @@
-# VWW for vehicles
+# Developing a Custom Visual Object Spotting system with the GAP *flow*
 
-In this project we have developed an edge-AI application for recognizing vehicle (visualwakewords vehicles) with rgb and grayscale images. The specific target of this application is the GAP-board family from Greenwaves-technologies.
-After having installed the [GAP_sdk](https://github.com/GreenWaves-Technologies/gap_sdk) you can directly try the application on a sample image (_images/COCO_val2014_000000000641.ppm_).
-Some of the trained .tflite network for the task are already in the _model_ folder. To convert the network to GAP code and run it on the platform simulator (gvsoc) you can directly run:
+
+Deep Learning (DL) frameworks (e.g. TensorFlow) provide a fast way to develop robust image classifiers. 
+The desing process leverages the collected data to train personalized detection pipelines, 
+which can be embedded into portable low-power devices, such as GAP8.
+In this context, the GAP *flow* is the missing piece between high-level DL frameworks and the processing engine GAP8.
+
+To showcase the customization and embedding of a deep learning pipeline for visual object spotting into a GAP8-based smart sensor,
+this project demonstrates the design steps in the figure below in case of image vehicle spotting. 
+Nevertheless, you can follow the same steps to easily and fastly build your own smart camera system!
+
+
+![image](./gapflow.png)
+
+# Getting Started with Vehicles Spotting on a GAP8 camera system
+The repository includes a trained TF model for image vehicle spotting. 
+To covert the model into C code with the GAP *flow* and run the application-code on a [GAP8-based camera system](https://greenwaves-technologies.com/store/): 
 ```
-make clean all run platform=gvsoc RGB=1 or 0
+make clean all run [RGB=1 or 0]
 ```
-In the following are presented in details the training of the network on a custom visualwakewords task (or even another image classification task) and the steps for GAP platform porting inside the Makefile magic.
+The applications works either with greyscale (default, Himax HM01B0) or RGB camera sensors (GalaxyCore GC0308); 
+TF models are trained accrodingly on greyscale or RGB augumented data.
+
+The application code runs also on the GAP8 software simulator [GVSOC](https://greenwaves-technologies.com/gvsoc-the-full-system-simulator-for-profiling-gap-applications/):
+```
+make clean all run platform=gvsoc [RGB=1 or 0]
+```
+where the visual pipeline is fed with a sample image loaded through JTAG (_images/COCO_val2014_000000000641.ppm_).
+
+
+In the following, we detail the design steps to train and deploy a custom visual spotting model for vehicle detectecion.
 
 ## Requirements
 > Tensorflow 1.13
@@ -14,9 +37,9 @@ In the following are presented in details the training of the network on a custo
 > GapSDK 3.5+
 
 ## Table of contents:
-  - [Dataset Preparing and training](#dataset-preparing-and-training)
-  - [NN on platform with GAPFlow](#nn-on-platform-with-gapflow)
-  - [Validation with Platform Emulator](#validation-with-platform-emulator)
+  - [Dataset Preparation and DL Model training](#dataset-preparing-and-training)
+  - [Deep Model Deployment on GAP8 with the GAP *flow*](#nn-on-platform-with-gapflow)
+  - [Accuracy Validation with Platform Emulator](#validation-with-platform-emulator)
   
 ## Dataset Preparing and training
 
