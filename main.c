@@ -66,15 +66,8 @@ struct pi_device ili;
 L2_MEM short int *ResOut;
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
 
-/* ------------------------------- function to print text on display -------------------- */
-void draw_text(struct pi_device *display, const char *str, unsigned posX, unsigned posY, unsigned fontsize)
-{
-    writeFillRect(ili, 0, 340, posX, fontsize*8, 0xFFFF);
-    setCursor(ili, posX, posY);
-    writeText(ili, str, fontsize);
-}
 
-/* --------------------------------- CAMERA & LCD OPEN ----------------------------------- */
+// camera and LCD utilities 
 static int open_display(struct pi_device *device)
 {
   struct pi_ili9341_conf ili_conf;
@@ -85,6 +78,13 @@ static int open_display(struct pi_device *device)
   if (pi_display_ioctl(device, PI_ILI_IOCTL_ORIENTATION, (void *)PI_ILI_ORIENTATION_180))
     return -1;
   return 0;
+}
+
+void draw_text(struct pi_device *display, const char *str, unsigned posX, unsigned posY, unsigned fontsize)
+{
+    writeFillRect(ili, 0, 340, posX, fontsize*8, 0xFFFF);
+    setCursor(ili, posX, posY);
+    writeText(ili, str, fontsize);
 }
 
 static int open_camera_himax(struct pi_device *device)
@@ -109,7 +109,6 @@ static int open_camera_rgb(struct pi_device *device)
     return 0;
 }
 
-/* ---------------------------------------------------------------------------------------- */
 
 static void RunNetwork()
 {
@@ -126,12 +125,13 @@ static void RunNetwork()
 int body(void)
 {
 	char result_out[30];
-/*-----------------voltage-frequency settings-----------------------*/
+	
+	// Voltage-Frequency settings
 	pi_freq_set(RT_FREQ_DOMAIN_FC,250000000);
 	pi_freq_set(RT_FREQ_DOMAIN_CL,175000000);
 //	PMU_set_voltage(1200,0);
 
-/*----------------- Open Camera Display-----------------------*/
+	// Open Camera & Display
 #ifdef HAVE_LCD
 	if (open_display(&ili)){
 		printf("Failed to open display\n");
@@ -156,21 +156,21 @@ int body(void)
 	#endif
 #endif
 
-/*-------------------------ALLOCATE THE OUTPUT TENSOR------------------------*/
+	// Allocate Output Tensors
 	ResOut = (short int *) AT_L2_ALLOC(0, 2*sizeof(short int));
 	if (ResOut==0) {
 		printf("Failed to allocate Memory for Result (%ld bytes)\n", 2*sizeof(short int));
 		return 1;
 	}
 
-/*------------------------ OPEN THE CLUSTER -------------------------------*/
+	// Open the Cluster
 	struct pi_device cluster_dev;
 	struct pi_cluster_conf conf;
 	pi_cluster_conf_init(&conf);
 	pi_open_from_conf(&cluster_dev, (void *)&conf);
 	pi_cluster_open(&cluster_dev);
 
-/*--------------------------TASK SETUP------------------------------*/
+	// Tesk Setup
 	struct pi_cluster_task *task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
 	if(task==NULL) {
 	  printf("pi_cluster_task alloc Error!\n");
@@ -183,7 +183,7 @@ int body(void)
 	task->slave_stack_size = SLAVE_STACK_SIZE;
 	task->arg = NULL;
 
-/*--------------------CONSTRUCT THE NETWORK-------------------------*/
+	// Construct the Graph
     PRINTF("Constructor\n");
 	// IMPORTANT - MUST BE CALLED AFTER THE CLUSTER IS SWITCHED ON!!!!
 	if (__PREFIX(CNN_Construct)())
@@ -193,12 +193,12 @@ int body(void)
 	}
 	PRINTF("Constructor was OK!\n");
 
-/*------------------------ Config Buffer for LCD Display -------------------*/
-	buffer.data = Input_1;//+AT_INPUT_WIDTH*2+2;
+	// Config Buffer for LCD Display 
+	buffer.data = Input_1;
 	buffer.stride = 0;
 
 	// WIth Himax, propertly configure the buffer to skip boarder pixels
-	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, Input_1);//+AT_INPUT_WIDTH*2+2);
+	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, Input_1);
 	pi_buffer_set_stride(&buffer, 0);
 	#ifdef RGB
 		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 2, PI_BUFFER_FORMAT_RGB565);
@@ -206,10 +206,11 @@ int body(void)
 		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 1, PI_BUFFER_FORMAT_GRAY);
 	#endif
 
-/* ----------------------------------------------------------- MAIN LOOP ---------------------------------------------------------------- */
+	// main applications
 	int count = 0;
 	while(1){
-		/*------------------- reading input data -----------------------------*/
+		
+		// Reading input data
 	    #ifdef HAVE_CAMERA
 			#ifdef RGB
 			    pi_task_t task_1;
@@ -252,9 +253,10 @@ int body(void)
 	  		pi_display_write(&ili, &buffer, 8, 20, AT_INPUT_WIDTH, AT_INPUT_HEIGHT);
 	  	#endif 
 
-		/*-----------------------CALL THE MAIN FUNCTION----------------------*/
+	  		// send task to cluster
 			pi_cluster_send_task_to_cl(&cluster_dev, task);
-		/*------------------------- check results ---------------------------*/
+
+			// check results
 			float vehicle_not_seen = FIX2FP(ResOut[0], 15);    
 	        float vehicle_seen = FIX2FP(ResOut[1], 15);
 
@@ -278,7 +280,7 @@ int body(void)
 		    #endif
 
 		#ifdef PERF
-		/*------------------------Performance Counter------------------------*/
+			// Performance Counters
 			{
 				unsigned int TotalCycles = 0, TotalOper = 0;
 				printf("\n");
@@ -293,7 +295,7 @@ int body(void)
 		#endif
 	}
 
-	/*-----------------------Desctruct the AT model----------------------*/
+		// Desctruct the AT model
 		__PREFIX(CNN_Destruct)();
 
 	printf("Ended\n");
