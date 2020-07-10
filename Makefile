@@ -8,7 +8,7 @@ ifndef GAP_SDK_HOME
   $(error Source sourceme in gap_sdk first)
 endif
 
-RGB?=1
+RGB?=0
 include common.mk
 
 ifeq ($(RGB), 1)

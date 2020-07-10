@@ -19,7 +19,7 @@ To covert the model into C code with the GAP *flow* and run the application-code
 ```
 make clean all run [RGB=1 or 0]
 ```
-The applications works either with greyscale (default, Himax HM01B0) or RGB camera sensors (GalaxyCore GC0308); 
+The application works either with greyscale (default, Himax HM01B0) or RGB camera sensors (GalaxyCore GC0308); 
 TF models are trained accrodingly on greyscale or RGB augumented data.
 
 The application code runs also on the GAP8 software simulator [GVSOC](https://greenwaves-technologies.com/gvsoc-the-full-system-simulator-for-profiling-gap-applications/):
@@ -91,10 +91,10 @@ Now, the dataset is ready to feed the training process.
 ### Model Training
 
 We select a MobileNetV2 to solve the image classification problem, 
-with input resolution 224x224 input dimensions and width multiplier of 1. 
+with input resolution 224x224 input dimensions and width multiplier of 1 in case of grayscale images and 0.35 in case of RGB images. 
 However, different models included in the TF SLim framework can be used as well.
 
-A quantization-aware finetuning process takes places durint the training phase. 
+A quantization-aware finetuning process takes places during the training phase. 
 The model training is launched with:
 
 ```
@@ -108,7 +108,7 @@ python3 train_image_classifier.py \
 	      --checkpoint_path='./vww_vehicle_train_grayscale/' \
 	      --max_number_of_steps=100000   \  
 	      --num_clones=1   \
-          --quantize_delay=90000  \
+        --quantize_delay=90000  \
 	      --use_grayscale
 ```
 - _use\_grayscale_: (optional): to apply grayscale conversion to the dataset samples
