@@ -60,7 +60,11 @@ struct pi_device camera;
 struct pi_device ili;
 #ifdef PERF
 	L2_MEM rt_perf_t *cluster_perf;
-#endif	
+#endif
+
+static pi_task_t task_himax;
+// Camera Buffer for async read from sensor
+L2_MEM uint8_t camera_buff[CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS];
 
 // Softmax always outputs Q15 short int even from 8 bit input
 L2_MEM short int *ResOut;
@@ -206,10 +210,14 @@ int body(void)
 		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 2, PI_BUFFER_FORMAT_RGB565);
 	#else
 		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 1, PI_BUFFER_FORMAT_GRAY);
+
+	    // start first aquisition -> async
+	    //uDMA max transfer is 128KB but input is less (224*224*2[rgb565]) -> only one transfer
+	    pi_camera_capture_async(&camera, camera_buff, AT_INPUT_SIZE, pi_task_block(&task_himax));
+	    pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 	#endif
 
 /* ----------------------------------------------------------- MAIN LOOP ---------------------------------------------------------------- */
-	int count = 0;
 	while(1){
 		/*------------------- reading input data -----------------------------*/
 	    #ifdef HAVE_CAMERA
@@ -221,19 +229,22 @@ int body(void)
 	            pi_task_wait_on(&task_1);
 	            pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);	
 		    #else
-		        pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
-		        pi_camera_capture(&camera, Input_1, IMAGE_SIZE);
-		        pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
-		        // Image Cropping to [ AT_INPUT_HEIGHT x AT_INPUT_WIDTH ]
+			    // wait previous async aquisition
+			    pi_task_wait_on(&task_himax);
+			    pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
+			    // start next aquisition
+			    pi_camera_capture_async(&camera, camera_buff, IMAGE_SIZE, pi_task_block(&task_himax));
+			    pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+			    // Image Cropping to [ AT_INPUT_HEIGHT x AT_INPUT_WIDTH ]
 			    int ps=0;
 			    for(int i =0;i<CAMERA_HEIGHT;i++){
-			    	for(int j=0;j<CAMERA_WIDTH;j++){
-			    		if (i<AT_INPUT_HEIGHT && j<AT_INPUT_WIDTH){
-			    			Input_1[ps] = Input_1[i*CAMERA_WIDTH+j];
-			    			ps++;        			
-			    		}
-			    	}
-			    } 	
+			      for(int j=0;j<CAMERA_WIDTH;j++){
+			        if (i<AT_INPUT_HEIGHT && j<AT_INPUT_WIDTH){
+			          Input_1[ps] = camera_buff[i*CAMERA_WIDTH+j];
+			          ps++;             
+			        }
+			      }
+			    }
 		  	#endif //CAMERA_TYPE
 		#else
 			char *ImageName = __XSTR(AT_IMAGE);
@@ -250,37 +261,36 @@ int body(void)
 			}
 		#endif //HAVE_CAMERA
 
+		#ifdef HAVE_LCD
+			pi_display_write(&ili, &buffer, 8, 20, AT_INPUT_WIDTH, AT_INPUT_HEIGHT);
+		#endif
+
+  		// send task to cluster
+		pi_cluster_send_task_to_cl(&cluster_dev, task);
+
+		// check results
+		float vehicle_not_seen = FIX2FP(ResOut[0], 15);    
+        float vehicle_seen = FIX2FP(ResOut[1], 15);
 	  	#ifdef HAVE_LCD
-	  		pi_display_write(&ili, &buffer, 8, 20, AT_INPUT_WIDTH, AT_INPUT_HEIGHT);
-	  	#endif 
-
-	  		// send task to cluster
-			pi_cluster_send_task_to_cl(&cluster_dev, task);
-
-			// check results
-			float vehicle_not_seen = FIX2FP(ResOut[0], 15);    
-	        float vehicle_seen = FIX2FP(ResOut[1], 15);
-
-        	#ifndef HAVE_LCD     
-		        if (vehicle_seen > vehicle_not_seen) {
-		            PRINTF("vehicle seen! confidence %f\n", vehicle_seen);
-        			pi_gpio_pin_write(NULL, GPIO_USER_LED, 1);
-		        } else {
-		            PRINTF("no vehicle seen %f\n", vehicle_not_seen);
-        			pi_gpio_pin_write(NULL, GPIO_USER_LED, 0);
-		        }
-     	   	#else
-		        if (vehicle_seen > vehicle_not_seen) {
-		            sprintf(result_out,"YES (%f)",vehicle_seen);
-    				writeFillRect(&ili, 0, 270, 244, 50, 0x07E0);
-		            draw_text(&ili, result_out, 30, 250, 2);
-		            }
-		        else{
-		            sprintf(result_out,"NO  (%f)",vehicle_not_seen);
-    				writeFillRect(&ili, 0, 270, 244, 50, 0xF800);
-		            draw_text(&ili, result_out, 30, 250, 2);
-		        }
-		    #endif
+	        if (vehicle_seen > vehicle_not_seen) {
+	            sprintf(result_out,"YES (%f)",vehicle_seen);
+				writeFillRect(&ili, 0, 270, 244, 50, 0x07E0);
+	            draw_text(&ili, result_out, 30, 250, 2);
+	            }
+	        else{
+	            sprintf(result_out,"NO  (%f)",vehicle_not_seen);
+				writeFillRect(&ili, 0, 270, 244, 50, 0xF800);
+	            draw_text(&ili, result_out, 30, 250, 2);
+	        }
+	    #else
+	        if (vehicle_seen > vehicle_not_seen) {
+	            PRINTF("vehicle seen! confidence %f\n", vehicle_seen);
+    			pi_gpio_pin_write(NULL, GPIO_USER_LED, 1);
+	        } else {
+	            PRINTF("no vehicle seen %f\n", vehicle_not_seen);
+    			pi_gpio_pin_write(NULL, GPIO_USER_LED, 0);
+	        }
+	  	#endif
 
 		#ifdef PERF
 			// Performance Counters
