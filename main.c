@@ -266,10 +266,12 @@ int body(void)
         	#ifndef HAVE_LCD     
 		        if (vehicle_seen > vehicle_not_seen) {
 		            PRINTF("vehicle seen! confidence %f\n", vehicle_seen);
-        			pi_gpio_pin_write(NULL, GPIO_USER_LED, 1);
+        			//TODO Verify why is not capiling in jenkins
+        			//pi_gpio_pin_write(NULL, GPIO_USER_LED, 1);
 		        } else {
 		            PRINTF("no vehicle seen %f\n", vehicle_not_seen);
-        			pi_gpio_pin_write(NULL, GPIO_USER_LED, 0);
+        			//TODO Verify why is not capiling in jenkins
+        			//pi_gpio_pin_write(NULL, GPIO_USER_LED, 0);
 		        }
      	   	#else
 		        if (vehicle_seen > vehicle_not_seen) {
