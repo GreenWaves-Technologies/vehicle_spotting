@@ -48,7 +48,6 @@ MODEL_L3_CONST=hflash
 
 pulpChip = GAP
 PULP_APP = vww_vehicle
-USE_PMSIS_BSP=1
 
 APP = vww_vehicle
 APP_SRCS += main.c $(MODEL_GEN_C) $(MODEL_COMMON_SRCS) $(CNN_LIB)
@@ -59,9 +58,12 @@ APP_CFLAGS += -DAT_MODEL_PREFIX=$(MODEL_PREFIX) $(MODEL_SIZE_CFLAGS)
 APP_CFLAGS += -DSTACK_SIZE=$(CLUSTER_STACK_SIZE) -DSLAVE_STACK_SIZE=$(CLUSTER_SLAVE_STACK_SIZE)
 APP_CFLAGS += -DAT_IMAGE=$(IMAGE)
 
+
 # test on board
-ifneq ($(platform), gvsoc)
- APP_CFLAGS += -DHAVE_CAMERA -DSILENT -DHAVE_LCD
+ifneq ($(DISABLE_DRIVERS), 1)
+	ifneq ($(platform), gvsoc)
+		APP_CFLAGS += -DHAVE_CAMERA -DSILENT -DHAVE_LCD
+	endif
 endif
 
 ifeq ($(RGB), 1)
