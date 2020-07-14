@@ -231,10 +231,6 @@ int body(void)
 		    #else
 			    // wait previous async aquisition
 			    pi_task_wait_on(&task_himax);
-			    pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
-			    // start next aquisition
-			    pi_camera_capture_async(&camera, camera_buff, IMAGE_SIZE, pi_task_block(&task_himax));
-			    pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 			    // Image Cropping to [ AT_INPUT_HEIGHT x AT_INPUT_WIDTH ]
 			    int ps=0;
 			    for(int i =0;i<CAMERA_HEIGHT;i++){
@@ -245,6 +241,10 @@ int body(void)
 			        }
 			      }
 			    }
+			    // start next aquisition
+			    pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
+			    pi_camera_capture_async(&camera, camera_buff, IMAGE_SIZE, pi_task_block(&task_himax));
+			    pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 		  	#endif //CAMERA_TYPE
 		#else
 			char *ImageName = __XSTR(AT_IMAGE);
