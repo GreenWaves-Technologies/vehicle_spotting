@@ -235,7 +235,9 @@ int body(void)
 	#endif
 
 /* ----------------------------------------------------------- MAIN LOOP ---------------------------------------------------------------- */
-	while(1){
+	int count = 0;
+	int iterate = 1;
+	while(iterate){
 		/*------------------- reading input data -----------------------------*/
 	    #ifdef HAVE_CAMERA
 			#ifdef RGB
@@ -267,6 +269,7 @@ int body(void)
 			    pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 		  	#endif //CAMERA_TYPE
 		#else
+			iterate=0; //do not iterate if there is no camera
 			char *ImageName = __XSTR(AT_IMAGE);
 			PRINTF("Reading image from %s\n",ImageName);
 			//Reading Image from Bridge
