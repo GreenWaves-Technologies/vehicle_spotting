@@ -44,8 +44,14 @@
 #define CAMERA_HEIGHT   (244)
 #ifdef RGB
   #define CAMERA_COLORS (3)
+  static pi_task_t task_gc_1;
+  // Camera Buffer for async read from sensor
+  L2_MEM uint8_t camera_buff[AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2];
 #else
   #define CAMERA_COLORS (1)
+  static pi_task_t task_himax;
+  // Camera Buffer for async read from sensor
+  L2_MEM uint8_t camera_buff[CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS];
 #endif
 #define IMAGE_SIZE 		(CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS)
 #define AT_INPUT_SIZE 	(AT_INPUT_WIDTH*AT_INPUT_HEIGHT*AT_INPUT_COLORS)
@@ -55,16 +61,13 @@
 	#define __STR(__s) #__s 
 #endif
 
+static struct pi_device dmacpy;
 static pi_buffer_t buffer;
 struct pi_device camera;
 struct pi_device ili;
 #ifdef PERF
 	L2_MEM rt_perf_t *cluster_perf;
 #endif
-
-static pi_task_t task_himax;
-// Camera Buffer for async read from sensor
-L2_MEM uint8_t camera_buff[CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS];
 
 // Softmax always outputs Q15 short int even from 8 bit input
 L2_MEM short int *ResOut;
@@ -206,15 +209,29 @@ int body(void)
 	// WIth Himax, propertly configure the buffer to skip boarder pixels
 	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, Input_1);//+AT_INPUT_WIDTH*2+2);
 	pi_buffer_set_stride(&buffer, 0);
+	#ifdef HAVE_CAMERA
 	#ifdef RGB
 		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 2, PI_BUFFER_FORMAT_RGB565);
-	#else
-		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 1, PI_BUFFER_FORMAT_GRAY);
-
 	    // start first aquisition -> async
 	    //uDMA max transfer is 128KB but input is less (224*224*2[rgb565]) -> only one transfer
-	    pi_camera_capture_async(&camera, camera_buff, AT_INPUT_SIZE, pi_task_block(&task_himax));
+	    pi_camera_capture_async(&camera, camera_buff, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, pi_task_block(&task_gc_1));
 	    pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+	#else
+		pi_buffer_set_format(&buffer, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, 1, PI_BUFFER_FORMAT_GRAY);
+	    // start first aquisition -> async
+	    pi_camera_capture_async(&camera, camera_buff, IMAGE_SIZE, pi_task_block(&task_himax));
+	    pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+	#endif
+    /* Init & open dmacpy. */
+    struct pi_dmacpy_conf dmacpy_conf = {0};
+    pi_dmacpy_conf_init(&dmacpy_conf);
+    pi_open_from_conf(&dmacpy, &dmacpy_conf);
+    int errors = pi_dmacpy_open(&dmacpy);
+    if (errors)
+    {
+        printf("Error dmacpy open : %ld !\n", errors);
+        pmsis_exit(-3);
+    }
 	#endif
 
 /* ----------------------------------------------------------- MAIN LOOP ---------------------------------------------------------------- */
@@ -222,24 +239,27 @@ int body(void)
 		/*------------------- reading input data -----------------------------*/
 	    #ifdef HAVE_CAMERA
 			#ifdef RGB
-			    pi_task_t task_1;
-	            //uDMA max transfer is 128KB but input is less (224*224*2[rgb565]) -> only one transfer
-	            pi_camera_capture_async(&camera, Input_1, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2,pi_task_block(&task_1));
+	            pi_task_wait_on(&task_gc_1);
+	            /* Copy buffer from L2 to L2. */
+			    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff, (void *) Input_1, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, PI_DMACPY_L2_L2);
+			    if(errors){
+					printf("Copy from L2 to L2 failed : %ld\n", errors); pmsis_exit(-5);
+			    }
+	            pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
+	            pi_camera_capture_async(&camera, camera_buff, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, pi_task_block(&task_gc_1));
 	            pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
-	            pi_task_wait_on(&task_1);
-	            pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);	
 		    #else
 			    // wait previous async aquisition
 			    pi_task_wait_on(&task_himax);
-			    // Image Cropping to [ AT_INPUT_HEIGHT x AT_INPUT_WIDTH ]
-			    int ps=0;
-			    for(int i =0;i<CAMERA_HEIGHT;i++){
-			      for(int j=0;j<CAMERA_WIDTH;j++){
-			        if (i<AT_INPUT_HEIGHT && j<AT_INPUT_WIDTH){
-			          Input_1[ps] = camera_buff[i*CAMERA_WIDTH+j];
-			          ps++;             
-			        }
-			      }
+			    // Image Cropping to [AT_INPUT_HEIGHT x AT_INPUT_WIDTH]
+			    int off_src = 0, off_dst = 0;
+			    for (int i=0; i<AT_INPUT_HEIGHT; i++){
+			    	/* Copy buffer from L2 to L2. */
+				    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff+off_src, (void *) Input_1+off_dst, AT_INPUT_WIDTH, PI_DMACPY_L2_L2);
+				    if(errors){
+						printf("Copy from L2 to L2 failed : %ld\n", errors); pmsis_exit(-5);
+				    }
+				    off_src += CAMERA_WIDTH; off_dst += AT_INPUT_WIDTH;
 			    }
 			    // start next aquisition
 			    pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
@@ -266,7 +286,11 @@ int body(void)
 		#endif
 
   		// send task to cluster
-		pi_cluster_send_task_to_cl(&cluster_dev, task);
+        //pi_gpio_pin_write(&gpio, gpio_inf, 1);
+        pi_task_t task_cl;
+		pi_cluster_send_task_to_cl_async(&cluster_dev, task, pi_task_block(&task_cl));
+	    pi_task_wait_on(&task_cl);
+        //pi_gpio_pin_write(&gpio, gpio_inf, 0);
 
 		// check results
 		float vehicle_not_seen = FIX2FP(ResOut[0], 15);    

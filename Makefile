@@ -61,7 +61,7 @@ APP_CFLAGS += -DAT_IMAGE=$(IMAGE)
 
 # test on board
 ifeq ($(platform), gvsoc)
-	APP_CFLAGS += -DPERF
+	APP_CFLAGS += -DPERF -DHAVE_LCD
 else
 	APP_CFLAGS += -DHAVE_CAMERA -DSILENT -DHAVE_LCD
 endif
