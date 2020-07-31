@@ -34,12 +34,6 @@
 #include "bsp/camera/gc0308.h"
 #include "bsp/display/ili9341.h"
 
-#if SILENT
-#define PRINTF(...) ((void) 0)
-#else
-#define PRINTF printf
-#endif
-
 #define CAMERA_WIDTH    (324)
 #define CAMERA_HEIGHT   (244)
 #ifdef RGB
@@ -136,8 +130,8 @@ int body(void)
 	char result_out[30];
 	
 	// Voltage-Frequency settings
-	pi_freq_set(RT_FREQ_DOMAIN_FC,250000000);
-	pi_freq_set(RT_FREQ_DOMAIN_CL,175000000);
+	pi_freq_set(RT_FREQ_DOMAIN_FC, FREQ_FC*1000*1000);
+	pi_freq_set(RT_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
 //	PMU_set_voltage(1200,0);
 
 	// Open Camera & Display
