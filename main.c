@@ -306,10 +306,10 @@ int body(void)
 	    #else
 	        if (vehicle_seen > vehicle_not_seen) {
 	            PRINTF("vehicle seen! confidence %f\n", vehicle_seen);
-    			pi_gpio_pin_write(NULL, GPIO_USER_LED, 1);
+    			// pi_gpio_pin_write(NULL, GPIO_USER_LED, 1);
 	        } else {
 	            PRINTF("no vehicle seen %f\n", vehicle_not_seen);
-    			pi_gpio_pin_write(NULL, GPIO_USER_LED, 0);
+    			// pi_gpio_pin_write(NULL, GPIO_USER_LED, 0);
 	        }
 	  	#endif
 
