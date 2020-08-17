@@ -90,6 +90,8 @@ void draw_text(struct pi_device *display, const char *str, unsigned posX, unsign
 }
 #endif
 
+#ifdef HAVE_CAMERA
+
 static int open_camera_himax(struct pi_device *device)
 {
   struct pi_himax_conf cam_conf;
@@ -112,6 +114,7 @@ static int open_camera_rgb(struct pi_device *device)
     return 0;
 }
 
+#endif
 
 static void RunNetwork()
 {
