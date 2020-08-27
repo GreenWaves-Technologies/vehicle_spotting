@@ -335,13 +335,13 @@ int body(void)
 		// Desctruct the AT model
 		__PREFIX(CNN_Destruct)();
 
-	printf("Ended\n");
+	PRINTF("Ended\n");
 	pmsis_exit(0);	
 	return 0;
 }
 
 int main(void)
 {
-    printf("\n\n\t *** Visualwakewords for vehicle ***\n\n");
+    PRINTF("\n\n\t *** Visualwakewords for vehicle ***\n\n");
     return pmsis_kickoff((void *) body);
 }
