@@ -130,6 +130,10 @@ static void RunNetwork()
 
 int body(void)
 {
+  #ifdef MEASUREMENTS
+		pi_gpio_pin_configure(NULL, PI_GPIO_A0_PAD_8_A4, PI_GPIO_OUTPUT);
+		pi_gpio_pin_write(NULL, PI_GPIO_A0_PAD_8_A4, 0);
+  #endif   
 	char result_out[30];
 	
 	// Voltage-Frequency settings
@@ -286,11 +290,16 @@ int body(void)
 		#endif
 
   		// send task to cluster
-        //pi_gpio_pin_write(&gpio, gpio_inf, 1);
+		#ifdef MEASUREMENTS
+			pi_time_wait_us(1000);
+			pi_gpio_pin_write(NULL, PI_GPIO_A0_PAD_8_A4, 1);
+		#endif
         pi_task_t task_cl;
 		pi_cluster_send_task_to_cl_async(&cluster_dev, task, pi_task_block(&task_cl));
 	    pi_task_wait_on(&task_cl);
-        //pi_gpio_pin_write(&gpio, gpio_inf, 0);
+	    #ifdef MEASUREMENTS
+			pi_gpio_pin_write(NULL, PI_GPIO_A0_PAD_8_A4, 0);
+		#endif
 
 		// check results
 		float vehicle_not_seen = FIX2FP(ResOut[0], 15);    
