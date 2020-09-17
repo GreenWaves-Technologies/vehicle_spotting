@@ -50,7 +50,7 @@ else
 	endif
 	FREQ_FC?=250
 	MODEL_L1_MEMORY=$(shell expr 60000 \- $(TOTAL_STACK_SIZE))
-	MODEL_L2_MEMORY=350000
+	MODEL_L2_MEMORY=300000
 	MODEL_L3_MEMORY=8388608
 endif
 # hram - HyperBus RAM
@@ -62,7 +62,6 @@ MODEL_L3_CONST=hflash
 
 pulpChip = GAP
 PULP_APP = vww_vehicle
-USE_PMSIS_BSP=1
 
 APP = vww_vehicle
 APP_SRCS += main.c $(MODEL_GEN_C) $(MODEL_COMMON_SRCS) $(CNN_LIB)
@@ -92,6 +91,7 @@ PLPBRIDGE_FLAGS += -f
 all:: model
 
 clean:: #clean_model
+	rm -rf $(MODEL_GEN_CLEAN)
 
 include common/model_rules.mk
 $(info APP_SRCS... $(APP_SRCS))
