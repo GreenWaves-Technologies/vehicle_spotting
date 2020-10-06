@@ -137,8 +137,9 @@ int body(void)
 	char result_out[30];
 	
 	// Voltage-Frequency settings
-	pi_freq_set(RT_FREQ_DOMAIN_FC, FREQ_FC*1000*1000);
-	pi_freq_set(RT_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
+	#if !FREQ_FC==50
+    pi_freq_set(PI_FREQ_DOMAIN_FC,FREQ_FC*1000*1000);
+    #endif
 //	PMU_set_voltage(1200,0);
 
 	// Open Camera & Display
@@ -179,7 +180,7 @@ int body(void)
 	pi_cluster_conf_init(&conf);
 	pi_open_from_conf(&cluster_dev, (void *)&conf);
 	pi_cluster_open(&cluster_dev);
-
+	pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
 	// Tesk Setup
 	struct pi_cluster_task *task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
 	if(task==NULL) {
