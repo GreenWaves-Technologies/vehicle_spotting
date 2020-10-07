@@ -197,9 +197,10 @@ int body(void)
 	// Construct the Graph
     PRINTF("Constructor\n");
 	// IMPORTANT - MUST BE CALLED AFTER THE CLUSTER IS SWITCHED ON!!!!
-	if (__PREFIX(CNN_Construct)())
+	int c_err;
+	if (c_err=__PREFIX(CNN_Construct)())
 	{
-	  printf("Graph constructor exited with an error\n");
+	  printf("Graph constructor exited with an error %d\n",c_err);
 	  return 1;
 	}
 	PRINTF("Constructor was OK!\n");
