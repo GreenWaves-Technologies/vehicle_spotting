@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
       #else
           img_io_out_t type = IMGIO_OUTPUT_CHAR;      
       #endif
-      if (ReadImageFromFile(filename_qfd, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, AT_INPUT_COLORS, Input_1, AT_INPUT_SIZE*sizeof(unsigned char), type, 0)) {
+      if (ReadImageFromFile(filename_qfd, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, AT_INPUT_COLORS, S0_Input_1, AT_INPUT_SIZE*sizeof(unsigned char), type, 0)) {
         printf("Failed to load image %s\n", filename_qfd);
         return 1;
       }
