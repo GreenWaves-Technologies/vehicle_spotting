@@ -66,6 +66,7 @@ struct pi_device ili;
 // Softmax always outputs Q15 short int even from 8 bit input
 L2_MEM short int *ResOut;
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
+extern unsigned char * __restrict__ Input_1;
 
 
 // camera and LCD utilities 
@@ -206,11 +207,11 @@ int body(void)
 	PRINTF("Constructor was OK!\n");
 
 	// Config Buffer for LCD Display 
-	buffer.data = S0_Input_1;
+	buffer.data = Input_1;
 	buffer.stride = 0;
 
 	// WIth Himax, propertly configure the buffer to skip boarder pixels
-	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, S0_Input_1);//+AT_INPUT_WIDTH*2+2);
+	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, Input_1);//+AT_INPUT_WIDTH*2+2);
 	pi_buffer_set_stride(&buffer, 0);
 	#ifdef HAVE_CAMERA
 	#ifdef RGB
@@ -246,7 +247,7 @@ int body(void)
 			#ifdef RGB
 	            pi_task_wait_on(&task_gc_1);
 	            /* Copy buffer from L2 to L2. */
-			    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff, (void *) S0_Input_1, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, PI_DMACPY_L2_L2);
+			    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff, (void *) Input_1, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, PI_DMACPY_L2_L2);
 			    if(errors){
 					printf("Copy from L2 to L2 failed : %ld\n", errors); pmsis_exit(-5);
 			    }
@@ -260,7 +261,7 @@ int body(void)
 			    int off_src = 0, off_dst = 0;
 			    for (int i=0; i<AT_INPUT_HEIGHT; i++){
 			    	/* Copy buffer from L2 to L2. */
-				    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff+off_src, (void *) S0_Input_1+off_dst, AT_INPUT_WIDTH, PI_DMACPY_L2_L2);
+				    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff+off_src, (void *) Input_1+off_dst, AT_INPUT_WIDTH, PI_DMACPY_L2_L2);
 				    if(errors){
 						printf("Copy from L2 to L2 failed : %ld\n", errors); pmsis_exit(-5);
 				    }
@@ -281,7 +282,7 @@ int body(void)
 			#else
 		  		img_io_out_t type = IMGIO_OUTPUT_CHAR;  		
 			#endif
-			if (ReadImageFromFile(ImageName, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, AT_INPUT_COLORS, S0_Input_1, AT_INPUT_SIZE*sizeof(unsigned char), type, 0)) {
+			if (ReadImageFromFile(ImageName, AT_INPUT_WIDTH, AT_INPUT_HEIGHT, AT_INPUT_COLORS, Input_1, AT_INPUT_SIZE*sizeof(unsigned char), type, 0)) {
 				printf("Failed to load image %s\n", ImageName);
 				return 1;
 			}

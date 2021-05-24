@@ -56,7 +56,7 @@ nntool_state: $(MODEL_STATE)
 # Runs NNTOOL with its state file to generate the autotiler model code
 $(MODEL_BUILD)/$(MODEL_SRC): $(MODEL_STATE) $(MODEL_TFLITE) | $(MODEL_BUILD)
 	echo "GENERATING AUTOTILER MODEL"
-	$(NNTOOL) -g -M $(MODEL_BUILD) -m $(MODEL_SRC) -T $(TENSORS_DIR) $(MODEL_GENFLAGS_EXTRA) $<
+	$(NNTOOL) -g -M $(MODEL_BUILD) -m $(MODEL_SRC) -T $(TENSORS_DIR) -H $(MODEL_HEADER) $(MODEL_GENFLAGS_EXTRA) $<
 
 nntool_gen: $(MODEL_BUILD)/$(MODEL_SRC)
 
