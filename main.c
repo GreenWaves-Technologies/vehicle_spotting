@@ -192,6 +192,11 @@ int body(void)
 	PRINTF("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
 	pi_cluster_task(task, (void (*)(void *))&RunNetwork, NULL);
 	pi_cluster_task_stacks(task, NULL, SLAVE_STACK_SIZE);
+	#if defined(__GAP8__)
+	task->stack_size = STACK_SIZE;
+	#endif
+	//task->slave_stack_size = SLAVE_STACK_SIZE;
+
 
 	// Construct the Graph
     PRINTF("Constructor\n");
