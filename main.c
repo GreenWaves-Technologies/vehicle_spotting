@@ -34,6 +34,12 @@
 #include "bsp/camera/gc0308.h"
 #include "bsp/display/ili9341.h"
 
+#ifndef SILENT
+    #define PRINTF printf
+#else
+    #define PRINTF(...) ((void) 0)
+#endif
+
 #define CAMERA_WIDTH    (324)
 #define CAMERA_HEIGHT   (244)
 #ifdef RGB
