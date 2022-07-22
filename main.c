@@ -34,6 +34,12 @@
 #include "bsp/camera/gc0308.h"
 #include "bsp/display/ili9341.h"
 
+#ifndef SILENT
+    #define PRINTF printf
+#else
+    #define PRINTF(...) ((void) 0)
+#endif
+
 #define CAMERA_WIDTH    (324)
 #define CAMERA_HEIGHT   (244)
 #ifdef RGB
@@ -179,6 +185,7 @@ int body(void)
 	struct pi_device cluster_dev;
 	struct pi_cluster_conf conf;
 	pi_cluster_conf_init(&conf);
+	conf.cc_stack_size = STACK_SIZE;
 	pi_open_from_conf(&cluster_dev, (void *)&conf);
 	pi_cluster_open(&cluster_dev);
 	pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
@@ -189,11 +196,13 @@ int body(void)
 	  pmsis_exit(-1);
 	}
 	PRINTF("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
-	memset(task, 0, sizeof(struct pi_cluster_task));
-	task->entry = &RunNetwork;
+	pi_cluster_task(task, (void (*)(void *))&RunNetwork, NULL);
+	pi_cluster_task_stacks(task, NULL, SLAVE_STACK_SIZE);
+	#if defined(__GAP8__)
 	task->stack_size = STACK_SIZE;
-	task->slave_stack_size = SLAVE_STACK_SIZE;
-	task->arg = NULL;
+	#endif
+	//task->slave_stack_size = SLAVE_STACK_SIZE;
+
 
 	// Construct the Graph
     PRINTF("Constructor\n");
