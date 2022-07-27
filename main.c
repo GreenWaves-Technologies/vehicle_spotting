@@ -190,7 +190,7 @@ int body(void)
 	pi_cluster_open(&cluster_dev);
 	pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
 	// Tesk Setup
-	struct pi_cluster_task *task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
+	struct pi_cluster_task *task = pi_l2_malloc(sizeof(struct pi_cluster_task));
 	if(task==NULL) {
 	  printf("pi_cluster_task alloc Error!\n");
 	  pmsis_exit(-1);
