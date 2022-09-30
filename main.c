@@ -254,7 +254,7 @@ int body(void)
 		/*------------------- reading input data -----------------------------*/
 	    #ifdef HAVE_CAMERA
 			#ifdef RGB
-	            pi_task_wait_on(&task_gc_1);
+	            pi_evt_wait_on(&task_gc_1);
 	            /* Copy buffer from L2 to L2. */
 			    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff, (void *) Input_1, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, PI_DMACPY_L2_L2);
 			    if(errors){
@@ -265,7 +265,7 @@ int body(void)
 	            pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 		    #else
 			    // wait previous async aquisition
-			    pi_task_wait_on(&task_himax);
+			    pi_evt_wait_on(&task_himax);
 			    // Image Cropping to [AT_INPUT_HEIGHT x AT_INPUT_WIDTH]
 			    int off_src = 0, off_dst = 0;
 			    for (int i=0; i<AT_INPUT_HEIGHT; i++){
