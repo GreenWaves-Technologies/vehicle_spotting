@@ -10,6 +10,9 @@ nodeoption input_1 EXTERN_INPUT_POINTER 1
 #nodeoption 8 PARALLELFEATURES 0
 #nodeoption 12 PARALLELFEATURES 0
 
+set l3_ram_device $(MODEL_L3_RAM)
+set l3_flash_device $(MODEL_L3_FLASH)
+
 set graph_produce_node_names true
 set graph_produce_operinfos true
 set graph_monitor_cycles true
