@@ -15,6 +15,9 @@ set graph_produce_operinfos true
 set graph_monitor_cycles true
 set graph_const_exec_from_flash true
 
+set l3_ram_device $(MODEL_L3_RAM)
+set l3_flash_device $(MODEL_L3_FLASH)
+
 # ENABLE THIS TO TRACE THE LAYERS EXECUTION
 #set graph_trace_exec true
 

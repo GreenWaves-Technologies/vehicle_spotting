@@ -54,12 +54,32 @@ else
 	MODEL_L2_MEMORY=200000
 	MODEL_L3_MEMORY=8388608
 endif
-# hram - HyperBus RAM
-# qspiram - Quad SPI RAM
-MODEL_L3_EXEC=hram
-# hflash - HyperBus Flash
-# qpsiflash - Quad SPI Flash
-MODEL_L3_CONST=hflash
+FLASH_TYPE ?= DEFAULT
+RAM_TYPE   ?= DEFAULT
+
+ifeq '$(FLASH_TYPE)' 'HYPER'
+  MODEL_L3_FLASH=AT_MEM_L3_HFLASH
+else ifeq '$(FLASH_TYPE)' 'MRAM'
+  MODEL_L3_FLASH=AT_MEM_L3_MRAMFLASH
+  READFS_FLASH = target/chip/soc/mram
+else ifeq '$(FLASH_TYPE)' 'QSPI'
+  MODEL_L3_FLASH=AT_MEM_L3_QSPIFLASH
+  READFS_FLASH = target/board/devices/spiflash
+else ifeq '$(FLASH_TYPE)' 'OSPI'
+  MODEL_L3_FLASH=AT_MEM_L3_OSPIFLASH
+else ifeq '$(FLASH_TYPE)' 'DEFAULT'
+  MODEL_L3_FLASH=AT_MEM_L3_DEFAULTFLASH
+endif
+
+ifeq '$(RAM_TYPE)' 'HYPER'
+  MODEL_L3_RAM=AT_MEM_L3_HRAM
+else ifeq '$(RAM_TYPE)' 'QSPI'
+  MODEL_L3_RAM=AT_MEM_L3_QSPIRAM
+else ifeq '$(RAM_TYPE)' 'OSPI'
+  MODEL_L3_RAM=AT_MEM_L3_OSPIRAM
+else ifeq '$(RAM_TYPE)' 'DEFAULT'
+  MODEL_L3_RAM=AT_MEM_L3_DEFAULTRAM
+endif
 
 pulpChip = GAP
 PULP_APP = vww_vehicle
@@ -87,8 +107,8 @@ endif
 READFS_FILES=$(abspath $(MODEL_TENSORS))
 PLPBRIDGE_FLAGS += -f
 
-# all depends on the model
-all:: model
+# build depends on the model
+build:: model
 
 clean:: #clean_model
 	rm -rf $(MODEL_GEN_CLEAN)

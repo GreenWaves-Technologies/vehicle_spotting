@@ -190,7 +190,7 @@ int body(void)
 	pi_cluster_open(&cluster_dev);
 	pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
 	// Tesk Setup
-	struct pi_cluster_task *task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
+	struct pi_cluster_task *task = pi_l2_malloc(sizeof(struct pi_cluster_task));
 	if(task==NULL) {
 	  printf("pi_cluster_task alloc Error!\n");
 	  pmsis_exit(-1);
@@ -254,7 +254,7 @@ int body(void)
 		/*------------------- reading input data -----------------------------*/
 	    #ifdef HAVE_CAMERA
 			#ifdef RGB
-	            pi_task_wait_on(&task_gc_1);
+	            pi_evt_wait_on(&task_gc_1);
 	            /* Copy buffer from L2 to L2. */
 			    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff, (void *) Input_1, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, PI_DMACPY_L2_L2);
 			    if(errors){
@@ -265,7 +265,7 @@ int body(void)
 	            pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 		    #else
 			    // wait previous async aquisition
-			    pi_task_wait_on(&task_himax);
+			    pi_evt_wait_on(&task_himax);
 			    // Image Cropping to [AT_INPUT_HEIGHT x AT_INPUT_WIDTH]
 			    int off_src = 0, off_dst = 0;
 			    for (int i=0; i<AT_INPUT_HEIGHT; i++){
