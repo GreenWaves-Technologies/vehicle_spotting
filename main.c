@@ -153,7 +153,7 @@ int body(void)
 #ifdef HAVE_LCD
 	if (open_display(&ili)){
 		printf("Failed to open display\n");
-		pmsis_exit(-1);
+		return -1;
 	}
     writeFillRect(&ili, 0, 0, 240, 320, 0xFFFF);
     writeText(&ili, "GreenWaves Technologies", 2);
@@ -167,7 +167,7 @@ int body(void)
 	#endif
 	if (err) {
 		printf("Failed to open camera\n");
-		pmsis_exit(-2);
+		return -2;
 	}
 	#ifdef RGB
 	    pi_camera_set_crop(&camera, (320-AT_INPUT_WIDTH)/2, (240-AT_INPUT_HEIGHT)/2, AT_INPUT_WIDTH, AT_INPUT_HEIGHT);
@@ -193,7 +193,7 @@ int body(void)
 	struct pi_cluster_task *task = pi_l2_malloc(sizeof(struct pi_cluster_task));
 	if(task==NULL) {
 	  printf("pi_cluster_task alloc Error!\n");
-	  pmsis_exit(-1);
+	  return -1 ;
 	}
 	PRINTF("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
 	pi_cluster_task(task, (void (*)(void *))&RunNetwork, NULL);
@@ -243,7 +243,7 @@ int body(void)
     if (errors)
     {
         printf("Error dmacpy open : %ld !\n", errors);
-        pmsis_exit(-3);
+        return -3;
     }
 	#endif
 
@@ -254,25 +254,25 @@ int body(void)
 		/*------------------- reading input data -----------------------------*/
 	    #ifdef HAVE_CAMERA
 			#ifdef RGB
-	            pi_evt_wait_on(&event_gc_1);
+	            pi_evt_wait(&event_gc_1);
 	            /* Copy buffer from L2 to L2. */
 			    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff, (void *) Input_1, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, PI_DMACPY_L2_L2);
 			    if(errors){
-					printf("Copy from L2 to L2 failed : %ld\n", errors); pmsis_exit(-5);
+					printf("Copy from L2 to L2 failed : %ld\n", errors); return -5;
 			    }
 	            pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
 	            pi_camera_capture_async(&camera, camera_buff, AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2, pi_evt_sig_init(&event_gc_1));
 	            pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 		    #else
 			    // wait previous async aquisition
-			    pi_evt_wait_on(&event_himax);
+			    pi_evt_wait(&event_himax);
 			    // Image Cropping to [AT_INPUT_HEIGHT x AT_INPUT_WIDTH]
 			    int off_src = 0, off_dst = 0;
 			    for (int i=0; i<AT_INPUT_HEIGHT; i++){
 			    	/* Copy buffer from L2 to L2. */
 				    errors = pi_dmacpy_copy(&dmacpy, (void *) camera_buff+off_src, (void *) Input_1+off_dst, AT_INPUT_WIDTH, PI_DMACPY_L2_L2);
 				    if(errors){
-						printf("Copy from L2 to L2 failed : %ld\n", errors); pmsis_exit(-5);
+						printf("Copy from L2 to L2 failed : %ld\n", errors); return -5;
 				    }
 				    off_src += CAMERA_WIDTH; off_dst += AT_INPUT_WIDTH;
 			    }
@@ -308,7 +308,7 @@ int body(void)
 		#endif
         pi_event_t event_cl;
 		pi_cluster_send_task_to_cl_async(&cluster_dev, task, pi_evt_sig_init(&event_cl));
-	    pi_evt_wait_on(&event_cl);
+	    pi_evt_wait(&event_cl);
 	    #ifdef MEASUREMENTS
 			pi_gpio_pin_write(NULL, PI_GPIO_A0_PAD_8_A4, 0);
 		#endif
@@ -357,12 +357,11 @@ int body(void)
 		__PREFIX(CNN_Destruct)();
 
 	PRINTF("Ended\n");
-	pmsis_exit(0);	
 	return 0;
 }
 
 int main(void)
 {
     PRINTF("\n\n\t *** Visualwakewords for vehicle ***\n\n");
-    return pmsis_kickoff((void *) body);
+    return body();
 }
