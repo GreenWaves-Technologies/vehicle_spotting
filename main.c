@@ -44,12 +44,12 @@
 #define CAMERA_HEIGHT   (244)
 #ifdef RGB
   #define CAMERA_COLORS (3)
-  static pi_event_t event_gc_1;
+  static pi_evt_t event_gc_1;
   // Camera Buffer for async read from sensor
   L2_MEM uint8_t camera_buff[AT_INPUT_WIDTH*AT_INPUT_HEIGHT*2];
 #else
   #define CAMERA_COLORS (1)
-  static pi_event_t event_himax;
+  static pi_evt_t event_himax;
   // Camera Buffer for async read from sensor
   L2_MEM uint8_t camera_buff[CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS];
 #endif
@@ -306,7 +306,7 @@ int body(void)
 			pi_time_wait_us(1000);
 			pi_gpio_pin_write(NULL, PI_GPIO_A0_PAD_8_A4, 1);
 		#endif
-        pi_event_t event_cl;
+        pi_evt_t event_cl;
 		pi_cluster_send_task_to_cl_async(&cluster_dev, task, pi_evt_sig_init(&event_cl));
 	    pi_evt_wait(&event_cl);
 	    #ifdef MEASUREMENTS
